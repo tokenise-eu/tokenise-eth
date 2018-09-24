@@ -1,0 +1,29 @@
+{
+  "name": "tokenise-eth",
+  "version": "1.0.0",
+  "description": "Ethereum smart contracts (ERC-884 based) for the tokenise.eu platform",
+  "main": "index.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tokenise-eu/tokenise-eth.git"
+  },
+  "author": "Jules de Smit",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/tokenise-eu/tokenise-eth/issues"
+  },
+  "homepage": "https://github.com/tokenise-eu/tokenise-eth#readme",
+  "dependencies": {
+    "fs-extra": "^7.0.0",
+    "ganache-cli": "^6.1.8",
+    "mocha": "^5.2.0",
+    "solc": "^0.4.25",
+    "web3": "^1.0.0-beta.36"
+  }
+}
