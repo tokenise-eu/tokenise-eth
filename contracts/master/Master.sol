@@ -1,122 +1,5 @@
 pragma solidity ^0.4.24;
 
-contract SecurityController {
-    address public deployedToken;
-    address public manager;
-
-    SecurityToken token;
-    bool public deployed;
-    bool public migrated;
-    bool public closed;
-
-    event Freeze();
-
-    event Lock(address indexed locked);
-
-    event Migrate();
-    
-    event Ready();
-    
-    event Deployed(address indexed tokenContract);
-    
-    modifier managerOnly() {
-        require(msg.sender == manager, "Unauthorized function call.");
-        _;
-    }
-    
-    modifier notClosed() {
-        require(!closed, "This contract has migrated. Please use the new interface.");
-        _;
-    }
-    
-    modifier isDeployed() {
-        require(deployed, "Your token contract has not yet been deployed. Call createOffering to deploy it.");
-        _;
-    }
-
-    constructor() public {
-        manager = msg.sender;
-        deployed = false;
-        migrated = false;
-        closed = false;
-    }
-    
-    function() public payable {
-        revert("This contract does not accept payments.");
-    }
-
-    function createToken(string _name, string _symbol)
-        public managerOnly 
-    {
-        if (!deployed) {
-            address newToken = new SecurityToken(_name, _symbol);
-            token = SecurityToken(newToken);
-            deployedToken = newToken;
-            token.initialize(address(this));
-            deployed = true;
-            emit Deployed(newToken);
-        } else {
-            revert("Contract already deployed an offering. If you would like to start another offering, please start up a new instance of this interface.");
-        }
-    }
-
-    // Returns address of the deployed token contract
-    function getOfferingAddress() public view notClosed isDeployed returns (address) {
-        return deployedToken;
-    }
-
-    // issuance function (can only be called on whitelisted addresses)
-    function issue(address _to, uint256 _amount) public managerOnly notClosed isDeployed returns (bool) {
-        return token.mint(_to, _amount);
-    }
-
-    // whitelist function
-    function whitelist(address _addr, string _data) public managerOnly notClosed isDeployed {
-        bytes32 hash = keccak256(abi.encodePacked(_data));
-        token.addVerified(_addr, hash);
-    }
-
-    // remove whitelist
-    function removeWhitelist(address _addr) public managerOnly notClosed isDeployed {
-        token.removeVerified(_addr);
-    }
-
-    // global fund-freeze toggle
-    function freeze() public managerOnly notClosed isDeployed returns (bool) {
-        emit Freeze();
-        return token.freeze();
-    }
-
-    // individual fund-freeze toggle
-    function freezePerson(address _addr) public managerOnly notClosed isDeployed returns (bool) {
-        emit Lock(_addr);
-        return token.lock(_addr);
-
-    }
-
-    function migrate(address _address, string _data, uint _balance) public managerOnly notClosed isDeployed {
-        if (!migrated) {
-            bytes32 hash = keccak256(abi.encodePacked(_data));
-            token.addVerified(_address, hash);
-            token.mint(_address, _balance);
-        } else {
-            revert("Migration has already been completed.");
-        }
-    }
-    
-    function finishMigration() public managerOnly notClosed isDeployed {
-        migrated = true;
-        emit Ready();
-    }
-
-    function closeForMigration() public managerOnly notClosed isDeployed {
-        emit Migrate();
-        closed = true;
-        token.freezeSuper();
-        selfdestruct(manager);
-    }
-}
-
 /**
  * @title SafeMath
  * @dev Math operations with safety checks that throw on error
@@ -537,102 +420,11 @@ contract StandardToken is ERC20, BasicToken {
 }
 
 /**
- * @title Migratable
- * Helper contract to support intialization and migration schemes between
- * different implementations of a contract in the context of upgradeability.
- * To use it, replace the constructor with a function that has the
- * `isInitializer` modifier starting with `"0"` as `migrationId`.
- * When you want to apply some migration code during an upgrade, increase
- * the `migrationId`. Or, if the migration code must be applied only after
- * another migration has been already applied, use the `isMigration` modifier.
- * This helper supports multiple inheritance.
- * WARNING: It is the developer's responsibility to ensure that migrations are
- * applied in a correct order, or that they are run at all.
- * See `Initializable` for a simpler version.
- */
-contract Migratable {
-    /**
-    * @dev Emitted when the contract applies a migration.
-    * @param contractName Name of the Contract.
-    * @param migrationId Identifier of the migration applied.
-    */
-    event Migrated(string contractName, string migrationId);
-
-    /**
-    * @dev Mapping of the already applied migrations.
-    * (contractName => (migrationId => bool))
-    */
-    mapping (string => mapping (string => bool)) internal migrated;
-
-    /**
-    * @dev Internal migration id used to specify that a contract has already been initialized.
-    */
-    string constant private INITIALIZED_ID = "initialized";
-
-
-    /**
-    * @dev Modifier to use in the initialization function of a contract.
-    * @param contractName Name of the contract.
-    * @param migrationId Identifier of the migration.
-    */
-    modifier isInitializer(string contractName, string migrationId) {
-        validateMigrationIsPending(contractName, INITIALIZED_ID);
-        validateMigrationIsPending(contractName, migrationId);
-        _;
-        emit Migrated(contractName, migrationId);
-        migrated[contractName][migrationId] = true;
-        migrated[contractName][INITIALIZED_ID] = true;
-    }
-
-    /**
-    * @dev Modifier to use in the migration of a contract.
-    * @param contractName Name of the contract.
-    * @param requiredMigrationId Identifier of the previous migration, required
-    * to apply new one.
-    * @param newMigrationId Identifier of the new migration to be applied.
-    */
-    modifier isMigration(string contractName, string requiredMigrationId, string newMigrationId) {
-        require(isMigrated(contractName, requiredMigrationId), "Prerequisite migration ID has not been run yet");
-        validateMigrationIsPending(contractName, newMigrationId);
-        _;
-        emit Migrated(contractName, newMigrationId);
-        migrated[contractName][newMigrationId] = true;
-    }
-
-    /**
-    * @dev Returns true if the contract migration was applied.
-    * @param contractName Name of the contract.
-    * @param migrationId Identifier of the migration.
-    * @return true if the contract migration was applied, false otherwise.
-    */
-    function isMigrated(string contractName, string migrationId) public view returns(bool) {
-        return migrated[contractName][migrationId];
-    }
-
-    /**
-    * @dev Initializer that marks the contract as initialized.
-    * It is important to run this if you had deployed a previous version of a Migratable contract.
-    * For more information see https://github.com/zeppelinos/zos-lib/issues/158.
-    */
-    function initialize() public isInitializer("Migratable", "1.2.1") {
-    }
-
-    /**
-    * @dev Reverts if the requested migration was already executed.
-    * @param contractName Name of the contract.
-    * @param migrationId Identifier of the migration.
-    */
-    function validateMigrationIsPending(string contractName, string migrationId) private view {
-        require(!isMigrated(contractName, migrationId), "Requested target migration ID has already been run");
-    }
-}
-
-/**
  * @title Ownable
  * @dev The Ownable contract has an owner address, and provides basic authorization control
  * functions, this simplifies the implementation of "user permissions".
  */
-contract Ownable is Migratable {
+contract Ownable {
     address public owner;
 
 
@@ -642,7 +434,7 @@ contract Ownable is Migratable {
     * @dev The Ownable constructor sets the original `owner` of the contract to the sender
     * account.
     */
-    function initialize(address _sender) public isInitializer("Ownable", "1.9.0") {
+    function initialize(address _sender) public {
         owner = _sender;
     }
 
@@ -672,7 +464,7 @@ contract Ownable is Migratable {
  * @dev Issue: * https://github.com/OpenZeppelin/openzeppelin-solidity/issues/120
  * Based on code by TokenMarketNet: https://github.com/TokenMarketNet/ico/blob/master/contracts/MintableToken.sol
  */
-contract MintableToken is Migratable, Ownable, StandardToken {
+contract MintableToken is Ownable, StandardToken {
     event Mint(address indexed to, uint256 amount);
     event MintFinished();
 
@@ -684,7 +476,7 @@ contract MintableToken is Migratable, Ownable, StandardToken {
         _;
     }
 
-    function initialize(address _sender) public isInitializer("MintableToken", "1.9.0") {
+    function initialize(address _sender) public {
         Ownable.initialize(_sender);
     }
 
@@ -1367,5 +1159,119 @@ contract SecurityToken is ERC884, MintableToken {
         } else {
             return false;
         }
+    }
+}
+
+contract SecurityController is Ownable {
+    address public deployedToken;
+    address public manager;
+
+    SecurityToken token;
+    bool public deployed;
+    bool public migrated;
+    bool public closed;
+
+    event Freeze();
+
+    event Lock(address indexed locked);
+
+    event Migrate();
+    
+    event Ready();
+    
+    event Deployed(address indexed tokenContract);
+    
+    modifier notClosed() {
+        require(!closed, "This contract has migrated. Please use the new interface.");
+        _;
+    }
+    
+    modifier isDeployed() {
+        require(deployed, "Your token contract has not yet been deployed. Call createOffering to deploy it.");
+        _;
+    }
+
+    modifier notMigrated() {
+        require(!migrated, "You have already finished migration.");
+        _;
+    }
+
+    constructor() public {
+        super.initialize(msg.sender);
+        deployed = false;
+        migrated = false;
+        closed = false;
+    }
+    
+    function() public payable {
+        revert("This contract does not accept payments.");
+    }
+
+    function createToken(string _name, string _symbol) public onlyOwner {
+        if (!deployed) {
+            address newToken = new SecurityToken(_name, _symbol);
+            token = SecurityToken(newToken);
+            deployedToken = newToken;
+            token.initialize(address(this));
+            deployed = true;
+            emit Deployed(newToken);
+        } else {
+            revert("Contract already deployed an offering. If you would like to start another offering, please start up a new instance of this interface.");
+        }
+    }
+
+    // Returns address of the deployed token contract
+    function getOfferingAddress() public view notClosed isDeployed returns (address) {
+        return deployedToken;
+    }
+
+    // issuance function (can only be called on whitelisted addresses)
+    function issue(address _to, uint256 _amount) public onlyOwner notClosed isDeployed returns (bool) {
+        return token.mint(_to, _amount);
+    }
+
+    // whitelist function
+    function whitelist(address _addr, string _data) public onlyOwner notClosed isDeployed {
+        bytes32 hash = keccak256(abi.encodePacked(_data));
+        token.addVerified(_addr, hash);
+    }
+
+    // remove whitelist
+    function removeWhitelist(address _addr) public onlyOwner notClosed isDeployed {
+        token.removeVerified(_addr);
+    }
+
+    // global fund-freeze toggle
+    function freeze() public onlyOwner notClosed isDeployed returns (bool) {
+        emit Freeze();
+        return token.freeze();
+    }
+
+    // individual fund-freeze toggle
+    function freezePerson(address _addr) public onlyOwner notClosed isDeployed returns (bool) {
+        emit Lock(_addr);
+        return token.lock(_addr);
+
+    }
+
+    function migrate(address _address, bytes32[] _data, uint _balance) public onlyOwner notClosed isDeployed notMigrated {
+        bytes32 hash = keccak256(abi.encodePacked(_data));
+        token.addVerified(_address, hash);
+        token.mint(_address, _balance);
+    }
+    
+    function finishMigration(address _newOwner) public onlyOwner notClosed isDeployed notMigrated {
+        if (_newOwner != address(0) && _newOwner != owner) {
+            super.transferOwnership(_newOwner);
+        }
+        migrated = true;
+        emit Ready();
+    }
+
+    function closeForMigration() public onlyOwner notClosed isDeployed {
+        emit Migrate();
+        closed = true;
+        token.freezeSuper();
+        selfdestruct(manager);
     }
 }
