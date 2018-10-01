@@ -11,10 +11,6 @@ async function deploy(provider) {
     const web3 = new Web3(provider);
 
     const accounts = await web3.eth.getAccounts();
-
-    if (!fs.existsSync('../build/SecurityController.json')) {
-        utils.Compile();
-    }
     
     try {
         const compiledController = require('../build/SecurityController.json');

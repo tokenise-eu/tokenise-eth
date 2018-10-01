@@ -10,17 +10,10 @@ const scripts = require('../scripts');
 
 const assert = require('assert');
 
-const compiledController = require('../build/SecurityController.json');
-
 let deployer;
 let manager;
 
 let controller;
-
-before(function() {
-    this.timeout(0);
-    utils.Compile();
-});
 
 beforeEach(async function() {
     this.timeout(0);
@@ -30,12 +23,12 @@ beforeEach(async function() {
 
     let result = await scripts.Deploy(provider);
     let controllerAddress = result.tokenInterface;
-    let tokenContractAddress = result.tokenContract;
 
+    const compiledController = require('../build/SecurityController.json');
     controller = new web3.eth.Contract(JSON.parse(compiledController.interface), controllerAddress);
 });
 
-describe('Ownership', () => {
+describe('Ownership', () => {   
     it('should initially belong to deployer module', async () => {
         let owner = await controller.methods.owner().call();
         assert.equal(owner, deployer);

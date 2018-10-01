@@ -9,9 +9,6 @@ const scripts = require('../scripts');
 
 const assert = require('assert');
 
-const compiledController = require('../build/SecurityController.json');
-const compiledToken = require('../build/SecurityToken.json');
-
 let deployer;
 let manager;
 let holder1;
@@ -35,6 +32,9 @@ beforeEach(async function() {
     let result = await scripts.Deploy(provider);
     let controllerAddress = result.tokenInterface;
     let tokenContractAddress = result.tokenContract;
+
+    const compiledController = require('../build/SecurityController.json');
+    const compiledToken = require('../build/SecurityToken.json');
 
     controller = new web3.eth.Contract(JSON.parse(compiledController.interface), controllerAddress);
     tokenContract = new web3.eth.Contract(JSON.parse(compiledToken.interface), tokenContractAddress);
@@ -78,9 +78,9 @@ describe('Transfers', () => {
     });
 
     it('should list the correct balances', async () => {
-        let holder1Balance = await tokenContract.methods.balances(holder1).call();
-        let holder2Balance = await tokenContract.methods.balances(holder2).call();
-        let whitelistedBalance = await tokenContract.methods.balances(whitelisted).call();
+        let holder1Balance = await tokenContract.methods.balanceOf(holder1).call();
+        let holder2Balance = await tokenContract.methods.balanceOf(holder2).call();
+        let whitelistedBalance = await tokenContract.methods.balanceOf(whitelisted).call();
 
         assert.equal(holder1Balance, 100);
         assert.equal(holder2Balance, 200);
@@ -105,10 +105,10 @@ describe('Transfers', () => {
     it('should update balances after transfer', async () => {
         await tokenContract.methods.transfer(whitelisted, 50).send({ from: holder2, gas: '1000000' });
 
-        let holder2Balance = await tokenContract.methods.balances(holder2).call();
+        let holder2Balance = await tokenContract.methods.balanceOf(holder2).call();
         assert.equal(holder2Balance, 150);
 
-        let whitelistedBalance = await tokenContract.methods.balances(whitelisted).call();
+        let whitelistedBalance = await tokenContract.methods.balanceOf(whitelisted).call();
         assert.equal(whitelistedBalance, 50);
     });
 
@@ -124,7 +124,7 @@ describe('Transfers', () => {
 
 describe('Locking', () => {
     beforeEach(async () => {
-        await tokenContract.methods.lock(holder1).send({ from: manager, gas: '1000000' });
+        await controller.methods.lock(holder1).send({ from: manager, gas: '1000000' });
     });
 
     it('should not allow transfers to locked account', async () => {

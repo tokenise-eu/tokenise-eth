@@ -1248,7 +1248,7 @@ contract SecurityController is Ownable {
     }
 
     // individual fund-freeze toggle
-    function freezePerson(address _addr) public onlyOwner notClosed isDeployed returns (bool) {
+    function lock(address _addr) public onlyOwner notClosed isDeployed returns (bool) {
         emit Lock(_addr);
         return token.lock(_addr);
 
