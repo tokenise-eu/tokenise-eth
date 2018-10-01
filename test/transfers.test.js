@@ -53,40 +53,6 @@ beforeEach(async function() {
 });
 
 describe('Transfers', () => {
-    it('should list holders appropriately', async () => {
-        let isHolder1 = await tokenContract.methods.isHolder(holder1).call();
-        let isHolder2 = await tokenContract.methods.isHolder(holder2).call();
-        let isHolder3 = await tokenContract.methods.isHolder(whitelisted).call();
-        let isHolder4 = await tokenContract.methods.isHolder(hacker).call();
-
-        assert(isHolder1 == true 
-            && isHolder2 == true 
-            && isHolder3 == false 
-            && isHolder4 == false);
-    });
-
-    it('should list verified addresses appropriately', async () => {
-        let isVerified1 = await tokenContract.methods.isVerified(holder1).call();
-        let isVerified2 = await tokenContract.methods.isVerified(holder2).call();
-        let isVerified3 = await tokenContract.methods.isVerified(whitelisted).call();
-        let isVerified4 = await tokenContract.methods.isVerified(hacker).call();
-
-        assert(isVerified1 == true 
-            && isVerified2 == true 
-            && isVerified3 == true 
-            && isVerified4 == false);
-    });
-
-    it('should list the correct balances', async () => {
-        let holder1Balance = await tokenContract.methods.balanceOf(holder1).call();
-        let holder2Balance = await tokenContract.methods.balanceOf(holder2).call();
-        let whitelistedBalance = await tokenContract.methods.balanceOf(whitelisted).call();
-
-        assert.equal(holder1Balance, 100);
-        assert.equal(holder2Balance, 200);
-        assert.equal(whitelistedBalance, 0);
-    });
-
     it('should allow transfers between whitelisted accounts', async () => {
         try {
             await tokenContract.methods.transfer(whitelisted, 50).send({ from: holder2, gas: '1000000' });
