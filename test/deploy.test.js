@@ -11,13 +11,11 @@ const scripts = require('../scripts');
 const assert = require('assert');
 
 const compiledController = require('../build/SecurityController.json');
-const compiledToken = require('../build/SecurityToken.json');
 
 let deployer;
 let manager;
 
 let controller;
-let tokenContract;
 
 before(function() {
     this.timeout(0);
@@ -35,7 +33,6 @@ beforeEach(async function() {
     let tokenContractAddress = result.tokenContract;
 
     controller = new web3.eth.Contract(JSON.parse(compiledController.interface), controllerAddress);
-    tokenContract = new web3.eth.Contract(JSON.parse(compiledToken.interface), tokenContractAddress);
 });
 
 describe('Ownership', () => {
