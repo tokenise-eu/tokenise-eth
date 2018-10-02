@@ -5,7 +5,6 @@ const provider = ganache.provider({ gasLimit: 10000000 });
 const Web3 = require('web3');
 const web3 = new Web3(provider);
 
-const utils = require('../utils');
 const scripts = require('../scripts');
 
 const assert = require('assert');
@@ -28,7 +27,7 @@ beforeEach(async function() {
     controller = new web3.eth.Contract(JSON.parse(compiledController.interface), controllerAddress);
 });
 
-describe('Ownership', () => {   
+describe('Deployment', () => {   
     it('should initially belong to deployer module', async () => {
         let owner = await controller.methods.owner().call();
         assert.equal(owner, deployer);

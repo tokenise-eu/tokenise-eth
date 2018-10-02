@@ -1,8 +1,6 @@
 'use strict';
 
 const Web3 = require('web3');
-const fs = require('fs-extra');
-const utils = require('../utils');
 
 async function deploy(provider) {
     var tokenInterface;

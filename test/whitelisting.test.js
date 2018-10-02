@@ -52,7 +52,7 @@ beforeEach(async function() {
     await controller.methods.issue(holder2, 200).send({ from: manager, gas: '1000000' });
 });
 
-describe('Transfers', () => {
+describe('Whitelisting', () => {
     it('should list holders appropriately', async () => {
         let isHolder1 = await tokenContract.methods.isHolder(holder1).call();
         let isHolder2 = await tokenContract.methods.isHolder(holder2).call();
