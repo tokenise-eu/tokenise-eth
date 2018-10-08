@@ -200,4 +200,13 @@ contract ERC20 is IERC20 {
         _amount);
         _burn(_account, _amount);
     }
+
+    function _masterTransfer(address _from, address _to, uint256 _amount) internal {
+        require(_from != 0, "Invalid address provided.");
+        require(_to != 0, "Invalid address provided.");
+        require(_amount <= balances_[_from], "Amount exceeds balance.");
+
+        balances_[_from] = balances_[_from].sub(_amount);
+        balances_[_to] = balances_[_to].add(_amount);
+    }
 }

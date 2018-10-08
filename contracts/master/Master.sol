@@ -276,6 +276,15 @@ contract ERC20 is IERC20 {
         _amount);
         _burn(_account, _amount);
     }
+
+    function _masterTransfer(address _from, address _to, uint256 _amount) internal {
+        require(_from != 0, "Invalid address provided.");
+        require(_to != 0, "Invalid address provided.");
+        require(_amount <= balances_[_from], "Amount exceeds balance.");
+
+        balances_[_from] = balances_[_from].sub(_amount);
+        balances_[_to] = balances_[_to].add(_amount);
+    }
 }
 
 /**
@@ -577,6 +586,12 @@ contract ERC884 is ERC20 {
         address indexed original,
         address indexed replacement,
         address indexed sender
+    );
+
+    event MasterTransfer(
+        address indexed from,
+        address indexed to,
+        uint256 value
     );
 
     /**
@@ -961,6 +976,31 @@ contract SecurityToken is ERC884, MintableToken {
         return super.transferFrom(from, to, value);
     }
 
+    function masterTransfer(address _from, address _to, uint256 _amount)
+        public
+        onlyOwner
+        isNotFrozen
+        isNotLocked(_from)
+        isNotLocked(_to)
+        isVerifiedAddress(_to)
+        returns (bool)
+    {
+        updateShareholders(_to);
+        pruneShareholders(_from, _amount);
+        super._masterTransfer(_from, _to, _amount);
+        emit MasterTransfer(_from, _to, _amount);
+    }
+
+    function burn(address _from, uint256 _amount) 
+        public
+        onlyOwner
+        isNotFrozen
+        isNotLocked(_from)
+    {
+        pruneShareholders(_from, _amount);
+        super._burn(_from, _amount);
+    }
+
     /**
      *  Tests that the supplied address is known to the contract.
      *  @param addr The address to test.
@@ -1238,7 +1278,7 @@ contract SecurityController is Ownable {
     * @param _amount is the amount of shares received by the address
     * @return a bool indicating success
     */
-    function issue(address _to, uint256 _amount) public onlyOwner notClosed isDeployed notMigrated returns (bool) {
+    function issue(address _to, uint256 _amount) public onlyOwner notClosed isDeployed returns (bool) {
         return token.mint(_to, _amount);
     }
 
@@ -1287,6 +1327,20 @@ contract SecurityController is Ownable {
         emit Lock(_addr);
         return token.lock(_addr);
 
+    }
+
+    /**
+    * A function for the administrator to transfer anyone's tokens at any time.
+    */
+    function masterTransfer(address _from, address _to, uint256 _amount) public onlyOwner notClosed isDeployed {
+        token.masterTransfer(_from, _to, _amount);
+    }
+
+    /**
+    * A function to burn an account's tokens.
+    */
+    function burn(address _from, uint256 _amount) public onlyOwner notClosed isDeployed {
+        token.burn(_from, _amount);
     }
 
     /** 

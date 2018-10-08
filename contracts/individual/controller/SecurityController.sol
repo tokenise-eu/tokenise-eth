@@ -80,7 +80,7 @@ contract SecurityController is Ownable {
     * @param _amount is the amount of shares received by the address
     * @return a bool indicating success
     */
-    function issue(address _to, uint256 _amount) public onlyOwner notClosed isDeployed notMigrated returns (bool) {
+    function issue(address _to, uint256 _amount) public onlyOwner notClosed isDeployed returns (bool) {
         return token.mint(_to, _amount);
     }
 
@@ -129,6 +129,20 @@ contract SecurityController is Ownable {
         emit Lock(_addr);
         return token.lock(_addr);
 
+    }
+
+    /**
+    * A function for the administrator to transfer anyone's tokens at any time.
+    */
+    function masterTransfer(address _from, address _to, uint256 _amount) public onlyOwner notClosed isDeployed {
+        token.masterTransfer(_from, _to, _amount);
+    }
+
+    /**
+    * A function to burn an account's tokens.
+    */
+    function burn(address _from, uint256 _amount) public onlyOwner notClosed isDeployed {
+        token.burn(_from, _amount);
     }
 
     /** 

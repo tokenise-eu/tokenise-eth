@@ -261,6 +261,31 @@ contract SecurityToken is ERC884, MintableToken {
         return super.transferFrom(from, to, value);
     }
 
+    function masterTransfer(address _from, address _to, uint256 _amount)
+        public
+        onlyOwner
+        isNotFrozen
+        isNotLocked(_from)
+        isNotLocked(_to)
+        isVerifiedAddress(_to)
+        returns (bool)
+    {
+        updateShareholders(_to);
+        pruneShareholders(_from, _amount);
+        super._masterTransfer(_from, _to, _amount);
+        emit MasterTransfer(_from, _to, _amount);
+    }
+
+    function burn(address _from, uint256 _amount) 
+        public
+        onlyOwner
+        isNotFrozen
+        isNotLocked(_from)
+    {
+        pruneShareholders(_from, _amount);
+        super._burn(_from, _amount);
+    }
+
     /**
      *  Tests that the supplied address is known to the contract.
      *  @param addr The address to test.

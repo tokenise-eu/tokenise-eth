@@ -76,6 +76,12 @@ contract ERC884 is ERC20 {
         address indexed sender
     );
 
+    event MasterTransfer(
+        address indexed from,
+        address indexed to,
+        uint256 value
+    );
+
     /**
      *  Add a verified address, along with an associated verification hash to the contract.
      *  Upon successful addition of a verified address, the contract must emit
