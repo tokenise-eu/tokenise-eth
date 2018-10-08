@@ -20,6 +20,7 @@
   },
   "homepage": "https://github.com/tokenise-eu/tokenise-eth#readme",
   "dependencies": {
+    "csv-parser": "^2.0.0",
     "fs-extra": "^7.0.0",
     "ganache-cli": "^6.1.8",
     "mocha": "^5.2.0",

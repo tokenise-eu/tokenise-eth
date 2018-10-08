@@ -806,7 +806,6 @@ contract SecurityToken is ERC884, MintableToken {
      */
     function holderCount()
         public
-        onlyOwner
         view
         returns (uint)
     {
@@ -1254,6 +1253,17 @@ contract SecurityController is Ownable {
         token.addVerified(_addr, hash);
     }
 
+    /**
+    * This function allows for easy cross-checking with the smart contract database of information hashes.
+    * @param _addr is the address that will be looked up
+    * @param _data is the KYC data for the specific address. This will be hashed and passed into the hasHash function.
+    * @return a bool indicated success or failure. 
+    */
+    function check(address _addr, string _data) public view notClosed isDeployed returns (bool) {
+        bytes32 hash = keccak256(abi.encodePacked(_data));
+        return token.hasHash(_addr, hash);
+    }
+
     /** 
     * A function to remove someone from the whitelist.
     * @param _addr is the address that will be removed
@@ -1286,10 +1296,12 @@ contract SecurityController is Ownable {
     * @param _data is the data of the shareholder
     * @param _balance is the balance of the shareholder before migration point
     */
-    function migrate(address _address, bytes32[] _data, uint _balance) public onlyOwner notClosed isDeployed notMigrated {
+    function migrate(address _address, string _data, uint _balance) public onlyOwner notClosed isDeployed notMigrated {
         bytes32 hash = keccak256(abi.encodePacked(_data));
         token.addVerified(_address, hash);
-        token.mint(_address, _balance);
+        if (_balance > 0) {
+            token.mint(_address, _balance);
+        }
     }
     
     /** 

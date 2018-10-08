@@ -106,7 +106,6 @@ contract SecurityToken is ERC884, MintableToken {
      */
     function holderCount()
         public
-        onlyOwner
         view
         returns (uint)
     {

@@ -1,18 +1,32 @@
 'use strict';
 
-const Web3 = require('web3');
+// const Web3 = require('web3');
 
-async function migrate(provider, controller, manager, addresses, data) {
-    const web3 = new Web3(provider);
-    const accounts = await web3.eth.getAccounts();
-    if (!addresses && !data) {
-        await controller.methods.finishMigration(manager).send({ from: accounts[0], gas: '1000000' });
+async function migrate(provider, controller, deployer, manager, addresses, info, balances) {
+    // const web3 = new Web3(provider);
+    if (!addresses && !info && !balances) {
+        await controller.methods.finishMigration(manager).send({ from: deployer, gas: '1000000' });
     } else {
-        if (typeof addresses !== Array || typeof data !== Array) {
+        let addressesLength = addresses.length;
+        let infoLength = info.length;
+        let balancesLength = balances.length;
+        if (!Array.isArray(addresses) || !Array.isArray(info) || !Array.isArray(balances)) {
             throw TypeError('Migration information needs to be in array form');
+        } else if ((addressesLength !== infoLength || addressesLength !== balancesLength) && addressesLength !== null) {
+            throw TypeError('Array lengths are not identical');
         } else {
-            //
-            await controller.methods.finishMigration(manager).send({ from: accounts[0], gas: '1000000' });
+            try {
+                for (let i = 0; i < addresses.length; i++) {
+                    try {
+                        await controller.methods.migrate(addresses[i], info[i], balances[i]).send({ from: deployer, gas: '1000000'});
+                    } catch (e) {
+                        throw Error(e.message);
+                    }
+                }
+                await controller.methods.finishMigration(manager).send({ from: deployer, gas: '1000000' });
+            } catch (e) {
+                throw Error(e.message);
+            }
         }
     }
 }
