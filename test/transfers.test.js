@@ -40,7 +40,7 @@ beforeEach(async function() {
     tokenContract = new web3.eth.Contract(JSON.parse(compiledToken.interface), tokenContractAddress);
 
     // Hand off to manager
-    await controller.methods.finishMigration(manager).send({ from: deployer, gas: '1000000' });
+    await scripts.Migrate(controller, deployer, manager);
 
     // Whitelist accounts
     await controller.methods.whitelist(holder1, 'Test').send({ from: manager, gas: '1000000' });

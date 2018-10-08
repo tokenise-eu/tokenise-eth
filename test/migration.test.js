@@ -55,7 +55,7 @@ describe('Migration', async function() {
         await readData;
     
         try {
-            await scripts.Migrate(provider, controller, deployer, manager, addresses, info, balances);
+            await scripts.Migrate(controller, deployer, manager, addresses, info, balances);
         } catch (e) {
             console.log('Migration failed: ', e.message);
         }

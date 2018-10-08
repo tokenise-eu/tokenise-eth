@@ -1,6 +1,6 @@
 'use strict';
 
-async function migrate(provider, controller, deployer, manager, addresses, info, balances) {
+async function migrate(controller, deployer, manager, addresses, info, balances) {
     if (!addresses && !info && !balances) {
         await controller.methods.finishMigration(manager).send({ from: deployer, gas: '1000000' });
     } else {

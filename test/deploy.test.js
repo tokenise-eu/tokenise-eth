@@ -34,13 +34,13 @@ describe('Deployment', () => {
     });
 
     it('should be transferable', async () => {
-        await controller.methods.finishMigration(manager).send({ from: deployer, gas: '1000000' });
+        await scripts.Migrate(controller, deployer, manager);
         let owner = await controller.methods.owner().call();
         assert.equal(owner, manager);
     });
 
     it('should allow the manager to interact with the token contract after deployment', async () => {
-        await controller.methods.finishMigration(manager).send({ from: deployer, gas: '1000000' });
+        await scripts.Migrate(controller, deployer, manager);
 
         try {
             await controller.methods.freeze().send({ from: manager, gas: '1000000' });
