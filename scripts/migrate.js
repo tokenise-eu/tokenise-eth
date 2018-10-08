@@ -1,9 +1,6 @@
 'use strict';
 
-// const Web3 = require('web3');
-
 async function migrate(provider, controller, deployer, manager, addresses, info, balances) {
-    // const web3 = new Web3(provider);
     if (!addresses && !info && !balances) {
         await controller.methods.finishMigration(manager).send({ from: deployer, gas: '1000000' });
     } else {
