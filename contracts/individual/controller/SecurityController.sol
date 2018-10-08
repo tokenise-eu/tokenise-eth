@@ -80,7 +80,7 @@ contract SecurityController is Ownable {
     * @param _amount is the amount of shares received by the address
     * @return a bool indicating success
     */
-    function issue(address _to, uint256 _amount) public onlyOwner notClosed isDeployed returns (bool) {
+    function issue(address _to, uint256 _amount) public onlyOwner notClosed isDeployed notMigrated returns (bool) {
         return token.mint(_to, _amount);
     }
 

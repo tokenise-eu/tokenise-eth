@@ -39,17 +39,17 @@ beforeEach(async function() {
     controller = new web3.eth.Contract(JSON.parse(compiledController.interface), controllerAddress);
     tokenContract = new web3.eth.Contract(JSON.parse(compiledToken.interface), tokenContractAddress);
 
-    // Hand off to manager
-    await scripts.Migrate(controller, deployer, manager);
-
     // Whitelist accounts
-    await controller.methods.whitelist(holder1, 'Test').send({ from: manager, gas: '1000000' });
-    await controller.methods.whitelist(holder2, 'Test').send({ from: manager, gas: '1000000' });
-    await controller.methods.whitelist(whitelisted, 'Test').send({ from: manager, gas: '1000000' });
+    await controller.methods.whitelist(holder1, 'Test').send({ from: deployer, gas: '1000000' });
+    await controller.methods.whitelist(holder2, 'Test').send({ from: deployer, gas: '1000000' });
+    await controller.methods.whitelist(whitelisted, 'Test').send({ from: deployer, gas: '1000000' });
 
     // Issue shares
-    await controller.methods.issue(holder1, 100).send({ from: manager, gas: '1000000' });
-    await controller.methods.issue(holder2, 200).send({ from: manager, gas: '1000000' });
+    await controller.methods.issue(holder1, 100).send({ from: deployer, gas: '1000000' });
+    await controller.methods.issue(holder2, 200).send({ from: deployer, gas: '1000000' });
+
+    // Hand off to manager
+    await scripts.Migrate(controller, deployer, manager);
 });
 
 describe('Whitelisting', () => {
