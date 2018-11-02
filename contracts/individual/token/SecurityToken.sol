@@ -4,22 +4,23 @@ import "./ERC884.sol";
 import "../ERC20/MintableToken.sol";
 
 /**
- *  An `ERC20` compatible token that conforms to Delaware State Senate,
- *  149th General Assembly, Senate Bill No. 69: An act to Amend Title 8
- *  of the Delaware Code Relating to the General Corporation Law.
+ * @title Security token
+ * An `ERC20` compatible token that conforms to Delaware State Senate,
+ * 149th General Assembly, Senate Bill No. 69: An act to Amend Title 8
+ * of the Delaware Code Relating to the General Corporation Law.
  *
- *  Implementation Details.
+ * Implementation Details.
  *
- *  An implementation of this token standard SHOULD provide the following:
+ * An implementation of this token standard SHOULD provide the following:
  *
- *  `name` - for use by wallets and exchanges.
- *  `symbol` - for use by wallets and exchanges.
+ * `name` - for use by wallets and exchanges.
+ * `symbol` - for use by wallets and exchanges.
  *
- *  In addition to the above the following optional `ERC20` function MUST be defined.
+ * In addition to the above the following optional `ERC20` function MUST be defined.
  *
- *  `decimals` — MUST return `0` as each token represents a single Share and Shares are non-divisible.
+ * `decimals` — MUST return `0` as each token represents a single Share and Shares are non-divisible.
  *
- *  @dev Ref https://github.com/ethereum/EIPs/blob/master/EIPS/eip-884.md
+ * @dev Ref https://github.com/ethereum/EIPs/blob/master/EIPS/eip-884.md
  */
 contract SecurityToken is ERC884, MintableToken {
 
@@ -75,16 +76,33 @@ contract SecurityToken is ERC884, MintableToken {
         _;
     }
 
-    constructor(string _name, string _symbol) public {
+    /**
+     *  This contract takes a name and ticker symbol upon creation.
+     *  @param _name The name of the token.
+     *  @param _symbol The ticker symbol of the token.
+     */
+    constructor(string _name, string _symbol) 
+        public 
+    {
         name = _name;
         symbol = _symbol;
     }
 
     /**
-     * As each token is minted it is added to the shareholders array.
-     * @param _to The address that will receive the minted tokens.
-     * @param _amount The amount of tokens to mint.
-     * @return A boolean that indicates if the operation was successful.
+     *  Fallback function. Rejects payments and returns the spent gas.
+     */
+    function() 
+        public 
+        payable 
+    {
+        revert("This contract does not accept payments.");
+    }
+
+    /**
+     *  As each token is minted it is added to the shareholders array.
+     *  @param _to The address that will receive the minted tokens.
+     *  @param _amount The amount of tokens to mint.
+     *  @return A boolean that indicates if the operation was successful.
      */
     function mint(address _to, uint256 _amount)
         public
@@ -94,7 +112,7 @@ contract SecurityToken is ERC884, MintableToken {
         isVerifiedAddress(_to)
         returns (bool)
     {
-        // if the address does not already own share then
+        // If the address does not already own share then
         // add the address to the shareholders array and record the index.
         updateShareholders(_to);
         return super.mint(_to, _amount);
@@ -117,7 +135,7 @@ contract SecurityToken is ERC884, MintableToken {
      *  you can retrieve the complete list of token holders, one at a time.
      *  It MUST throw if `index >= holderCount()`.
      *  @param index The zero-based index of the holder.
-     *  @return the address of the token holder with the given index.
+     *  @return The address of the token holder with the given index.
      */
     function holderAt(uint256 index)
         public
@@ -289,7 +307,7 @@ contract SecurityToken is ERC884, MintableToken {
     /**
      *  Tests that the supplied address is known to the contract.
      *  @param addr The address to test.
-     *  @return true if the address is known to the contract.
+     *  @return A boolean indicating if the address is known to the contract.
      */
     function isVerified(address addr)
         public
@@ -302,7 +320,7 @@ contract SecurityToken is ERC884, MintableToken {
     /**
      *  Checks to see if the supplied address is a share holder.
      *  @param addr The address to check.
-     *  @return true if the supplied address owns a token.
+     *  @return A boolean indicating if the supplied address owns a token.
      */
     function isHolder(address addr)
         public
@@ -316,7 +334,7 @@ contract SecurityToken is ERC884, MintableToken {
      *  Checks that the supplied hash is associated with the given address.
      *  @param addr The address to test.
      *  @param hash The hash to test.
-     *  @return true if the hash matches the one supplied with the address in `addVerified`, or `updateVerified`.
+     *  @return A boolean indicating if the hash matches the one supplied with the address in `addVerified`, or `updateVerified`.
      */
     function hasHash(address addr, bytes32 hash)
         public
@@ -332,7 +350,7 @@ contract SecurityToken is ERC884, MintableToken {
     /**
      *  Checks to see if the supplied address was superseded.
      *  @param addr The address to check.
-     *  @return true if the supplied address was superseded by another address.
+     *  @return A boolean indicating if the supplied address was superseded by another address.
      */
     function isSuperseded(address addr)
         public
@@ -348,7 +366,7 @@ contract SecurityToken is ERC884, MintableToken {
      *  Addresses may be superseded multiple times, so this function needs to
      *  follow the chain of addresses until it reaches the final, verified address.
      *  @param addr The superseded address.
-     *  @return the verified address that ultimately holds the share.
+     *  @return The verified address that ultimately holds the share.
      */
     function getCurrentFor(address addr)
         public
@@ -362,7 +380,7 @@ contract SecurityToken is ERC884, MintableToken {
     /**
      *  Recursively find the most recent address given a superseded one.
      *  @param addr The superseded address.
-     *  @return the verified address that ultimately holds the share.
+     *  @return The verified address that ultimately holds the share.
      */
     function findCurrentFor(address addr)
         internal
@@ -418,9 +436,9 @@ contract SecurityToken is ERC884, MintableToken {
     }
 
     /**
-    * Extension to the ERC884 standard, allowing the manager/controller
-    * to freeze/unfreeze all transfers.
-    * @return a bool to indicate whether funds are frozen or not after function call.
+    *  Extension to the ERC884 standard, a toggle function allowing the manager/controller
+    *  to freeze/unfreeze all transfers.
+    *  @return A boolean indicating whether funds are frozen or not after function call.
     */
     function freeze() 
         public 
@@ -438,8 +456,10 @@ contract SecurityToken is ERC884, MintableToken {
     }
 
     /**
-    * Extension to the ERC884 standard, put in place for migration purposes
-    * in a case of a security breach or similar event.
+    *  Extension to the ERC884 standard, put in place for migration purposes
+    *  in a case of a security breach or similar event. This will essentially paralyze
+    *  the token contract into a state where it can not be modified anymore.
+    *  The consequences of this function are final and can not be undone. Use with caution.
     */
     function freezeSuper()
         public
@@ -451,13 +471,14 @@ contract SecurityToken is ERC884, MintableToken {
     }
 
     /**
-    * Extension to the ERC884 standard, allowing the manager/controller
-    * to freeze funds of a specific individual.
-    * @return a bool to indicate whether funds are frozen or not after function call
+    *  Extension to the ERC884 standard, a toggle function allowing the manager/controller
+    *  to freeze funds of a specific individual.
+    *  @return A boolean indicating whether funds are frozen or not after function call
     */
     function lock(address _addr)
         public
         onlyOwner
+        isNotClosed
         returns (bool)
     {
         if (locked[_addr]) {
@@ -470,8 +491,8 @@ contract SecurityToken is ERC884, MintableToken {
     }
 
     /**
-    * Extension to the ERC884 standard to check whether an account is locked or not.
-    * @return a bool to indicate whether funds are frozen or not.
+    *  Extension to the ERC884 standard to check whether an account is locked or not.
+    *  @return A boolean indicating whether funds are frozen or not.
     */
     function isLocked(address _addr)
         public

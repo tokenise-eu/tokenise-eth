@@ -515,25 +515,25 @@ contract MintableToken is Ownable, StandardToken {
 }
 
 /**
- *  An `ERC20` compatible token that conforms to Delaware State Senate,
- *  149th General Assembly, Senate Bill No. 69: An act to Amend Title 8
- *  of the Delaware Code Relating to the General Corporation Law.
+ * An `ERC20` compatible token that conforms to Delaware State Senate,
+ * 149th General Assembly, Senate Bill No. 69: An act to Amend Title 8
+ * of the Delaware Code Relating to the General Corporation Law.
  *
- *  Implementation Details.
+ * Implementation Details.
  *
- *  An implementation of this token standard SHOULD provide the following:
+ * An implementation of this token standard SHOULD provide the following:
  *
- *  `name` - for use by wallets and exchanges.
- *  `symbol` - for use by wallets and exchanges.
+ * `name` - for use by wallets and exchanges.
+ * `symbol` - for use by wallets and exchanges.
  *
- *  The implementation MUST take care not to allow unauthorised access to share
- *  transfer functions.
+ * The implementation MUST take care not to allow unauthorised access to share
+ * transfer functions.
  *
- *  In addition to the above the following optional `ERC20` function MUST be defined.
+ * In addition to the above the following optional `ERC20` function MUST be defined.
  *
- *  `decimals` — MUST return `0` as each token represents a single Share and Shares are non-divisible.
+ * `decimals` — MUST return `0` as each token represents a single Share and Shares are non-divisible.
  *
- *  @dev Ref https://github.com/ethereum/EIPs/pull/884
+ * @dev Ref https://github.com/ethereum/EIPs/pull/884
  */
 contract ERC884 is ERC20 {
 
@@ -588,6 +588,12 @@ contract ERC884 is ERC20 {
         address indexed sender
     );
 
+    /**
+     *  This event is emitted when an administrator transfers tokens.
+     *  @param from The address the tokens came from.
+     *  @param to The address the tokens were sent to.
+     *  @param value The amount that was sent.
+     */
     event MasterTransfer(
         address indexed from,
         address indexed to,
@@ -691,50 +697,51 @@ contract ERC884 is ERC20 {
     function getCurrentFor(address addr) public view returns (address);
 
     /**
-    * Extension to the ERC884 standard, allowing the manager/controller
-    * to freeze all transfers.
-    * @return a bool to indicate if the operation was successful.
+    *  Extension to the ERC884 standard, allowing the manager/controller
+    *  to freeze all transfers.
+    *  @return a bool to indicate if the operation was successful.
     */
     function freeze() public returns (bool);
 
     /**
-    * Extension to the ERC884 standard, put in place for migration purposes
-    * in a case of a security breach or similar event.
+    *  Extension to the ERC884 standard, put in place for migration purposes
+    *  in a case of a security breach or similar event.
     */
     function freezeSuper() public;
 
     /**
-    * Extension to the ERC884 standard, allowing the manager/controller
-    * to freeze funds of a specific individual.
-    * @return a bool to indicate whether funds are frozen or not after function call
+    *  Extension to the ERC884 standard, allowing the manager/controller
+    *  to freeze funds of a specific individual.
+    *  @return a bool to indicate whether funds are frozen or not after function call
     */
     function lock(address _addr) public returns (bool);
 
     /**
-    * Extension to the ERC884 standard to check whether an account is locked or not.
-    * @return a bool to indicate whether funds are frozen or not.
+    *  Extension to the ERC884 standard to check whether an account is locked or not.
+    *  @return a bool to indicate whether funds are frozen or not.
     */
     function isLocked(address _addr) public view returns (bool);
 }
 
 
 /**
- *  An `ERC20` compatible token that conforms to Delaware State Senate,
- *  149th General Assembly, Senate Bill No. 69: An act to Amend Title 8
- *  of the Delaware Code Relating to the General Corporation Law.
+ * @title Security token
+ * An `ERC20` compatible token that conforms to Delaware State Senate,
+ * 149th General Assembly, Senate Bill No. 69: An act to Amend Title 8
+ * of the Delaware Code Relating to the General Corporation Law.
  *
- *  Implementation Details.
+ * Implementation Details.
  *
- *  An implementation of this token standard SHOULD provide the following:
+ * An implementation of this token standard SHOULD provide the following:
  *
- *  `name` - for use by wallets and exchanges.
- *  `symbol` - for use by wallets and exchanges.
+ * `name` - for use by wallets and exchanges.
+ * `symbol` - for use by wallets and exchanges.
  *
- *  In addition to the above the following optional `ERC20` function MUST be defined.
+ * In addition to the above the following optional `ERC20` function MUST be defined.
  *
- *  `decimals` — MUST return `0` as each token represents a single Share and Shares are non-divisible.
+ * `decimals` — MUST return `0` as each token represents a single Share and Shares are non-divisible.
  *
- *  @dev Ref https://github.com/ethereum/EIPs/blob/master/EIPS/eip-884.md
+ * @dev Ref https://github.com/ethereum/EIPs/blob/master/EIPS/eip-884.md
  */
 contract SecurityToken is ERC884, MintableToken {
 
@@ -790,16 +797,33 @@ contract SecurityToken is ERC884, MintableToken {
         _;
     }
 
-    constructor(string _name, string _symbol) public {
+    /**
+     *  This contract takes a name and ticker symbol upon creation.
+     *  @param _name The name of the token.
+     *  @param _symbol The ticker symbol of the token.
+     */
+    constructor(string _name, string _symbol) 
+        public 
+    {
         name = _name;
         symbol = _symbol;
     }
 
     /**
-     * As each token is minted it is added to the shareholders array.
-     * @param _to The address that will receive the minted tokens.
-     * @param _amount The amount of tokens to mint.
-     * @return A boolean that indicates if the operation was successful.
+     *  Fallback function. Rejects payments and returns the spent gas.
+     */
+    function() 
+        public 
+        payable 
+    {
+        revert("This contract does not accept payments.");
+    }
+
+    /**
+     *  As each token is minted it is added to the shareholders array.
+     *  @param _to The address that will receive the minted tokens.
+     *  @param _amount The amount of tokens to mint.
+     *  @return A boolean that indicates if the operation was successful.
      */
     function mint(address _to, uint256 _amount)
         public
@@ -809,7 +833,7 @@ contract SecurityToken is ERC884, MintableToken {
         isVerifiedAddress(_to)
         returns (bool)
     {
-        // if the address does not already own share then
+        // If the address does not already own share then
         // add the address to the shareholders array and record the index.
         updateShareholders(_to);
         return super.mint(_to, _amount);
@@ -832,7 +856,7 @@ contract SecurityToken is ERC884, MintableToken {
      *  you can retrieve the complete list of token holders, one at a time.
      *  It MUST throw if `index >= holderCount()`.
      *  @param index The zero-based index of the holder.
-     *  @return the address of the token holder with the given index.
+     *  @return The address of the token holder with the given index.
      */
     function holderAt(uint256 index)
         public
@@ -1004,7 +1028,7 @@ contract SecurityToken is ERC884, MintableToken {
     /**
      *  Tests that the supplied address is known to the contract.
      *  @param addr The address to test.
-     *  @return true if the address is known to the contract.
+     *  @return A boolean indicating if the address is known to the contract.
      */
     function isVerified(address addr)
         public
@@ -1017,7 +1041,7 @@ contract SecurityToken is ERC884, MintableToken {
     /**
      *  Checks to see if the supplied address is a share holder.
      *  @param addr The address to check.
-     *  @return true if the supplied address owns a token.
+     *  @return A boolean indicating if the supplied address owns a token.
      */
     function isHolder(address addr)
         public
@@ -1031,7 +1055,7 @@ contract SecurityToken is ERC884, MintableToken {
      *  Checks that the supplied hash is associated with the given address.
      *  @param addr The address to test.
      *  @param hash The hash to test.
-     *  @return true if the hash matches the one supplied with the address in `addVerified`, or `updateVerified`.
+     *  @return A boolean indicating if the hash matches the one supplied with the address in `addVerified`, or `updateVerified`.
      */
     function hasHash(address addr, bytes32 hash)
         public
@@ -1047,7 +1071,7 @@ contract SecurityToken is ERC884, MintableToken {
     /**
      *  Checks to see if the supplied address was superseded.
      *  @param addr The address to check.
-     *  @return true if the supplied address was superseded by another address.
+     *  @return A boolean indicating if the supplied address was superseded by another address.
      */
     function isSuperseded(address addr)
         public
@@ -1063,7 +1087,7 @@ contract SecurityToken is ERC884, MintableToken {
      *  Addresses may be superseded multiple times, so this function needs to
      *  follow the chain of addresses until it reaches the final, verified address.
      *  @param addr The superseded address.
-     *  @return the verified address that ultimately holds the share.
+     *  @return The verified address that ultimately holds the share.
      */
     function getCurrentFor(address addr)
         public
@@ -1077,7 +1101,7 @@ contract SecurityToken is ERC884, MintableToken {
     /**
      *  Recursively find the most recent address given a superseded one.
      *  @param addr The superseded address.
-     *  @return the verified address that ultimately holds the share.
+     *  @return The verified address that ultimately holds the share.
      */
     function findCurrentFor(address addr)
         internal
@@ -1133,9 +1157,9 @@ contract SecurityToken is ERC884, MintableToken {
     }
 
     /**
-    * Extension to the ERC884 standard, allowing the manager/controller
-    * to freeze/unfreeze all transfers.
-    * @return a bool to indicate whether funds are frozen or not after function call.
+    *  Extension to the ERC884 standard, a toggle function allowing the manager/controller
+    *  to freeze/unfreeze all transfers.
+    *  @return A boolean indicating whether funds are frozen or not after function call.
     */
     function freeze() 
         public 
@@ -1153,8 +1177,10 @@ contract SecurityToken is ERC884, MintableToken {
     }
 
     /**
-    * Extension to the ERC884 standard, put in place for migration purposes
-    * in a case of a security breach or similar event.
+    *  Extension to the ERC884 standard, put in place for migration purposes
+    *  in a case of a security breach or similar event. This will essentially paralyze
+    *  the token contract into a state where it can not be modified anymore.
+    *  The consequences of this function are final and can not be undone. Use with caution.
     */
     function freezeSuper()
         public
@@ -1166,13 +1192,14 @@ contract SecurityToken is ERC884, MintableToken {
     }
 
     /**
-    * Extension to the ERC884 standard, allowing the manager/controller
-    * to freeze funds of a specific individual.
-    * @return a bool to indicate whether funds are frozen or not after function call
+    *  Extension to the ERC884 standard, a toggle function allowing the manager/controller
+    *  to freeze funds of a specific individual.
+    *  @return A boolean indicating whether funds are frozen or not after function call
     */
     function lock(address _addr)
         public
         onlyOwner
+        isNotClosed
         returns (bool)
     {
         if (locked[_addr]) {
@@ -1185,8 +1212,8 @@ contract SecurityToken is ERC884, MintableToken {
     }
 
     /**
-    * Extension to the ERC884 standard to check whether an account is locked or not.
-    * @return a bool to indicate whether funds are frozen or not.
+    *  Extension to the ERC884 standard to check whether an account is locked or not.
+    *  @return A boolean indicating whether funds are frozen or not.
     */
     function isLocked(address _addr)
         public
@@ -1201,23 +1228,65 @@ contract SecurityToken is ERC884, MintableToken {
     }
 }
 
+/**
+ * @title Security controller
+ * The security controller acts as a bridge between the security token
+ * and the administrator. It rounds up all the functions in a Security
+ * token contract into a few neatly ordered functions for ease of use.
+ * 
+ * The security controller provides all functionality needed to manage a
+ * security token without interfacing with the token contract directly.
+ *
+ * On top of this, the security controller provides functionality needed for
+ * contract launch and contract migration. It works in tandem with the
+ * tokenise off-chain applications in order to provide a fully compliant
+ * security token standard, easily managable by clients.
+ *
+ * @dev https://github.com/tokenise-eu/tokenise-eth
+ */
 contract SecurityController is Ownable {
+
     address public deployedToken;
     address public manager;
 
     SecurityToken token;
+
     bool public deployed;
     bool public migrated;
     bool public closed;
 
+    /**
+     *  This event is emitted when the administrator toggles the freezing of transfers.
+     */
     event Freeze();
 
+    /**
+     *  This event is emitted when a certain address is locked or unlocked.
+     *  @param locked The address that's being locked or unlocked.
+     */
     event Lock(address indexed locked);
 
+    /**
+     *  This event is emitted when the migration function is called.
+     *  This will happen in the event of a security breach, or a platform migration.
+     *  This event will signal the off-chain applications to pack up migration
+     *  data and prepare to re-deploy it on another contract or platform.
+     */
     event Migrate();
     
+    /**
+     *  This event is emitted when a newly deployed token contract is properly
+     *  populated with the data it needs, and is handed over from the deployer
+     *  module to the administrator.
+     */
     event Ready();
     
+    /**
+     *  This event is emitted when a token contract is deployed via the
+     *  security controller. This event will signal the off-chain applications
+     *  to set data migration in motion.
+     *  @param tokenContract The address of the newly deployed token contract.
+     */
     event Deployed(address indexed tokenContract);
     
     modifier notClosed() {
@@ -1235,23 +1304,37 @@ contract SecurityController is Ownable {
         _;
     }
 
-    constructor() public {
+    /**
+     *  Initializes the controller.
+     */
+    constructor() 
+        public 
+    {
         super.initialize(msg.sender);
         deployed = false;
         migrated = false;
         closed = false;
     }
     
-    function() public payable {
+    /**
+     *  Fallback function. Rejects payments and returns the spent gas.
+     */
+    function() 
+        public 
+        payable 
+    {
         revert("This contract does not accept payments.");
     }
 
     /**
-    * This function will create the ERC-884 contract with the chosen name and symbol.
-    * @param _name will be the name of the token contract
-    * @param _symbol will be the symbol/ticker for the token contract
+    *  Create the ERC-884 contract with the chosen name and symbol.
+    *  @param _name The name of the token contract.
+    *  @param _symbol The symbol/ticker for the token contract.
     */
-    function createToken(string _name, string _symbol) public onlyOwner {
+    function createToken(string _name, string _symbol) 
+        public 
+        onlyOwner 
+    {
         if (!deployed) {
             address newToken = new SecurityToken(_name, _symbol);
             token = SecurityToken(newToken);
@@ -1265,117 +1348,200 @@ contract SecurityController is Ownable {
     }
 
     /** 
-    * A simple function to retrieve the address of the token contract deployed by this controller.
-    * @return the address of the token contract
+    *  Retrieve the address of the token contract deployed by this controller.
+    *  @return The address of the token contract.
     */
-    function getOfferingAddress() public view notClosed isDeployed returns (address) {
+    function getOfferingAddress() 
+        public 
+        view 
+        notClosed 
+        isDeployed 
+        returns (address) 
+    {
         return deployedToken;
     }
 
     /** 
-    * Simple function to issue shares.
-    * @param _to is the address which will receive the shares
-    * @param _amount is the amount of shares received by the address
-    * @return a bool indicating success
+    *  Issue an amount of shares to an address. Address must be verified in the token contract
+    *  it's calling the function on.
+    *  @param _to The address which will receive the shares.
+    *  @param _amount The amount of shares received by the address.
+    *  @return A boolean indicating if minting was successful.
     */
-    function issue(address _to, uint256 _amount) public onlyOwner notClosed isDeployed returns (bool) {
+    function issue(address _to, uint256 _amount) 
+        public 
+        onlyOwner 
+        notClosed 
+        isDeployed 
+        returns (bool) 
+    {
         return token.mint(_to, _amount);
     }
 
     /** 
-    * This function allows whitelisting ethereum addresses for receiving, holding and transfering shares.
-    * @param _addr is the address which will be whitelisted
-    * @param _data is the KYC data for the specific address. This data will be hashed and stored in the contract,
-    * allowing regulators to cross-check the off-chain database with the contract
+    *  Whitelist ethereum addres for receiving, holding and transfering shares. A string of holder information
+    *  should be included to then be hashed and stored in the token contract. This information string
+    *  should match the string of information in the off-chain database.
+    *  @param _addr The address which will be whitelisted
+    *  @param _data The KYC data for the specific address. This data will be hashed and stored in the contract,
+    *  allowing regulators to cross-check the off-chain database with the contract by comparing hashes.
     */
-    function whitelist(address _addr, string _data) public onlyOwner notClosed isDeployed {
+    function whitelist(address _addr, string _data) 
+        public 
+        onlyOwner 
+        notClosed 
+        isDeployed 
+    {
         bytes32 hash = keccak256(abi.encodePacked(_data));
         token.addVerified(_addr, hash);
     }
 
     /**
-    * This function allows for easy cross-checking with the smart contract database of information hashes.
-    * @param _addr is the address that will be looked up
-    * @param _data is the KYC data for the specific address. This will be hashed and passed into the hasHash function.
-    * @return a bool indicated success or failure. 
+    *  This function allows for easy cross-checking with the smart contract database of information hashes.
+    *  @param _addr The address that will be looked up
+    *  @param _data The KYC data for the specific address. This will be hashed and passed into the hasHash function.
+    *  @return A boolean indicating if a match was found. 
     */
-    function check(address _addr, string _data) public view notClosed isDeployed returns (bool) {
+    function check(address _addr, string _data) 
+        public 
+        view 
+        notClosed 
+        isDeployed 
+        returns (bool) 
+    {
         bytes32 hash = keccak256(abi.encodePacked(_data));
         return token.hasHash(_addr, hash);
     }
 
     /** 
-    * A function to remove someone from the whitelist.
-    * @param _addr is the address that will be removed
+    *  Remove someone from the whitelist. This will remove their address and information
+    *  hash from the token contract.
+    *  @param _addr The address that will be removed.
     */
-    function removeWhitelist(address _addr) public onlyOwner notClosed isDeployed {
+    function removeWhitelist(address _addr) 
+        public 
+        onlyOwner 
+        notClosed 
+        isDeployed 
+    {
         token.removeVerified(_addr);
     }
 
     /** 
-    * A function to freeze any and all transfers within the token contract.
+    *  A toggle function to freeze any and all transfers within the token contract.
+    *  @return A boolean indicating if funds are now frozen or unfrozen.
     */
-    function freeze() public onlyOwner notClosed isDeployed returns (bool) {
+    function freeze() 
+        public 
+        onlyOwner 
+        notClosed 
+        isDeployed 
+        returns (bool) 
+    {
         emit Freeze();
         return token.freeze();
     }
 
     /**
-    * A function to freeze funds of a single account holder.
+    *  A toggle function to freeze funds of a single account holder.
+    *  @param _addr The address for which to lock/unlock funds.
+    *  @return A boolean indicating if funds are now frozen or unfrozen for the holder.
     */
-    function lock(address _addr) public onlyOwner notClosed isDeployed returns (bool) {
+    function lock(address _addr) 
+        public 
+        onlyOwner 
+        notClosed 
+        isDeployed 
+        returns (bool) 
+    {
         emit Lock(_addr);
         return token.lock(_addr);
-
     }
 
     /**
-    * A function for the administrator to transfer anyone's tokens at any time.
+    *  A function for the administrator to transfer anyone's tokens at any time.
+    *  @param _from The address the tokens will be transferred form.
+    *  @param _to The address the tokens will be transferred to.
+    *  @param _amount The amount of tokens to send.
     */
-    function masterTransfer(address _from, address _to, uint256 _amount) public onlyOwner notClosed isDeployed {
+    function masterTransfer(address _from, address _to, uint256 _amount) 
+        public 
+        onlyOwner 
+        notClosed 
+        isDeployed 
+    {
         token.masterTransfer(_from, _to, _amount);
     }
 
     /**
-    * A function to burn an account's tokens.
+    *  A function to burn an account's tokens.
+    *  @param _from The address to burn the tokens from.
+    *  @param _amount The amount of tokens to burn.
     */
-    function burn(address _from, uint256 _amount) public onlyOwner notClosed isDeployed {
+    function burn(address _from, uint256 _amount) 
+        public 
+        onlyOwner 
+        notClosed 
+        isDeployed 
+    {
         token.burn(_from, _amount);
     }
 
     /** 
-    * A function which, after migrating from another contract/blockchain, will allow the deployer to populate
-    * this new contract with all the old data.
-    * @param _address is the address of the migrated shareholder
-    * @param _data is the data of the shareholder
-    * @param _balance is the balance of the shareholder before migration point
+    *  A function which, after migrating from another contract/blockchain, will allow the deployer to populate
+    *  this new contract with all the old data.
+    *  @param _address The address of the migrated shareholder.
+    *  @param _data The data of the shareholder.
+    *  @param _balance The balance of the shareholder before migration point.
     */
-    function migrate(address _address, string _data, uint _balance) public onlyOwner notClosed isDeployed notMigrated {
+    function migrate(address _address, string _data, uint256 _balance) 
+        public 
+        onlyOwner 
+        notClosed 
+        isDeployed 
+        notMigrated 
+        returns (bool) 
+    {
         bytes32 hash = keccak256(abi.encodePacked(_data));
         token.addVerified(_address, hash);
         if (_balance > 0) {
-            token.mint(_address, _balance);
+            // This will return false if verification failed, so we won't need to check it here.
+            return token.mint(_address, _balance);
         }
+
+        return token.isVerified(_address);
     }
     
     /** 
-    * A function that signals the completion of setup and migration, hands the controls off to the owner,
-    * and signals the off-chain applications to begin running.
-    * @param _newOwner should be the address of the owner
+    *  A function that signals the completion of setup and migration, hands the controls off to the administrator,
+    *  and signals the off-chain applications to begin running.
+    *  @param _newOwner The address of the administrator.
     */
-    function finishMigration(address _newOwner) public onlyOwner notClosed isDeployed notMigrated {
+    function finishMigration(address _newOwner) 
+        public 
+        onlyOwner 
+        notClosed 
+        isDeployed 
+        notMigrated 
+    {
         if (_newOwner != address(0) && _newOwner != owner) {
             super.transferOwnership(_newOwner);
         }
+
         migrated = true;
         emit Ready();
     }
 
     /** 
-    * A function to invoke migration to another contract/blockchain. Freezes the current contract, signals
-    * the off-chain apps to begin migration, and then selfdestructs.
+    *  A function to invoke migration to another contract/blockchain. Freezes the current contract, signals
+    *  the off-chain apps to begin migration, and then selfdestructs.
     */
-    function closeForMigration() public onlyOwner notClosed isDeployed {
+    function closeForMigration() 
+        public 
+        onlyOwner 
+        notClosed 
+        isDeployed 
+    {
         emit Migrate();
         closed = true;
         token.freezeSuper();
