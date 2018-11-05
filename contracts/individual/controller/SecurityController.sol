@@ -1,4 +1,4 @@
-pragma solidity ^0.4.24;
+pragma solidity 0.4.25;
 
 import "../helpers/Ownable.sol";
 import "../token/SecurityToken.sol";
@@ -65,17 +65,17 @@ contract SecurityController is Ownable {
     event Deployed(address indexed tokenContract);
     
     modifier notClosed() {
-        require(!closed, "This contract has migrated. Please use the new interface.");
+        assert(!closed);
         _;
     }
     
     modifier isDeployed() {
-        require(deployed, "Your token contract has not yet been deployed. Call createOffering to deploy it.");
+        assert(deployed);
         _;
     }
 
     modifier notMigrated() {
-        require(!migrated, "You have already finished migration.");
+        assert(!migrated);
         _;
     }
 
@@ -123,20 +123,6 @@ contract SecurityController is Ownable {
     }
 
     /** 
-    *  Retrieve the address of the token contract deployed by this controller.
-    *  @return The address of the token contract.
-    */
-    function getOfferingAddress() 
-        public 
-        view 
-        notClosed 
-        isDeployed 
-        returns (address) 
-    {
-        return deployedToken;
-    }
-
-    /** 
     *  Issue an amount of shares to an address. Address must be verified in the token contract
     *  it's calling the function on.
     *  @param _to The address which will receive the shares.
@@ -169,23 +155,6 @@ contract SecurityController is Ownable {
     {
         bytes32 hash = keccak256(abi.encodePacked(_data));
         token.addVerified(_addr, hash);
-    }
-
-    /**
-    *  This function allows for easy cross-checking with the smart contract database of information hashes.
-    *  @param _addr The address that will be looked up
-    *  @param _data The KYC data for the specific address. This will be hashed and passed into the hasHash function.
-    *  @return A boolean indicating if a match was found. 
-    */
-    function check(address _addr, string _data) 
-        public 
-        view 
-        notClosed 
-        isDeployed 
-        returns (bool) 
-    {
-        bytes32 hash = keccak256(abi.encodePacked(_data));
-        return token.hasHash(_addr, hash);
     }
 
     /** 
@@ -283,7 +252,8 @@ contract SecurityController is Ownable {
             // This will return false if verification failed, so we won't need to check it here.
             return token.mint(_address, _balance);
         }
-
+        
+        // Check if verification went through if account did not have any tokens.
         return token.isVerified(_address);
     }
     
@@ -321,5 +291,36 @@ contract SecurityController is Ownable {
         closed = true;
         token.freezeSuper();
         selfdestruct(manager);
+    }
+
+    /** 
+    *  Retrieve the address of the token contract deployed by this controller.
+    *  @return The address of the token contract.
+    */
+    function getOfferingAddress() 
+        public 
+        view 
+        notClosed 
+        isDeployed 
+        returns (address) 
+    {
+        return deployedToken;
+    }
+
+    /**
+    *  This function allows for easy cross-checking with the smart contract database of information hashes.
+    *  @param _addr The address that will be looked up
+    *  @param _data The KYC data for the specific address. This will be hashed and passed into the hasHash function.
+    *  @return A boolean indicating if a match was found. 
+    */
+    function check(address _addr, string _data) 
+        public 
+        view 
+        notClosed 
+        isDeployed 
+        returns (bool) 
+    {
+        bytes32 hash = keccak256(abi.encodePacked(_data));
+        return token.hasHash(_addr, hash);
     }
 }

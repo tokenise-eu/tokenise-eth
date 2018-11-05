@@ -1,4 +1,4 @@
-pragma solidity ^0.4.24;
+pragma solidity 0.4.25;
 
 import "./ERC884.sol";
 import "../ERC20/MintableToken.sol";
@@ -38,8 +38,8 @@ contract SecurityToken is ERC884, MintableToken {
 
     address[] private shareholders;
 
-    bool private frozen = false;
-    bool private closed = false;
+    bool public frozen = false;
+    bool public closed = false;
 
     modifier isVerifiedAddress(address addr) {
         require(verified[addr] != ZERO_BYTES, "Not a valid address.");
@@ -62,17 +62,17 @@ contract SecurityToken is ERC884, MintableToken {
     }
 
     modifier isNotFrozen() {
-        require(!frozen, "Contract is frozen.");
+        assert(!frozen);
         _;
     }
 
     modifier isNotLocked(address _addr) {
-        require(!locked[_addr], "Given address has been locked.");
+        require(!locked[_addr], "Address is currently locked.");
         _;
     }
     
     modifier isNotClosed() {
-        require(!closed, "This contract has migrated. Please update your pointers.");
+        assert(!closed);
         _;
     }
 
@@ -158,6 +158,7 @@ contract SecurityToken is ERC884, MintableToken {
     function addVerified(address addr, bytes32 hash)
         public
         onlyOwner
+        isNotClosed
         isNotCancelled(addr)
     {
         require(addr != ZERO_ADDRESS, "Invalid address provided.");
@@ -177,6 +178,7 @@ contract SecurityToken is ERC884, MintableToken {
     function removeVerified(address addr)
         public
         onlyOwner
+        isNotClosed
     {
         require(balances[addr] == 0, "Address still holds tokens. Please empty the account before removing it from the list.");
         if (verified[addr] != ZERO_BYTES) {
@@ -198,6 +200,7 @@ contract SecurityToken is ERC884, MintableToken {
     function updateVerified(address addr, bytes32 hash)
         public
         onlyOwner
+        isNotClosed
         isVerifiedAddress(addr)
     {
         require(hash != ZERO_BYTES, "Invalid data hash provided.");
@@ -221,7 +224,7 @@ contract SecurityToken is ERC884, MintableToken {
     function cancelAndReissue(address original, address replacement)
         public
         onlyOwner
-        isNotFrozen
+        isNotClosed
         isShareholder(original)
         isNotShareholder(replacement)
         isVerifiedAddress(replacement)
@@ -279,12 +282,15 @@ contract SecurityToken is ERC884, MintableToken {
         return super.transferFrom(from, to, value);
     }
 
+    /**
+     *  Allow the administrator to move any tokens in the contract, in case of a
+     *  regulatory issue with one or more accounts on the contract.
+     *  Employs all the basic checks and record keeping done by `transfer` and `transferFrom`.
+     */
     function masterTransfer(address _from, address _to, uint256 _amount)
         public
         onlyOwner
-        isNotFrozen
-        isNotLocked(_from)
-        isNotLocked(_to)
+        isNotClosed
         isVerifiedAddress(_to)
         returns (bool)
     {
@@ -294,14 +300,72 @@ contract SecurityToken is ERC884, MintableToken {
         emit MasterTransfer(_from, _to, _amount);
     }
 
+    /**
+     *  Burn tokens on a specific address. Can only be called by an administrator
+     *  and the concerning account has to be unlocked at the time of function call.
+     */
     function burn(address _from, uint256 _amount) 
         public
         onlyOwner
-        isNotFrozen
-        isNotLocked(_from)
+        isNotClosed
     {
         pruneShareholders(_from, _amount);
         super._burn(_from, _amount);
+    }
+
+    /**
+    *  Extension to the ERC884 standard, a toggle function allowing the manager/controller
+    *  to freeze/unfreeze all transfers.
+    *  @return A boolean indicating whether funds are frozen or not after function call.
+    */
+    function freeze() 
+        public 
+        onlyOwner 
+        isNotClosed
+        returns (bool)
+    {
+        if (!frozen) {
+            frozen = true;
+            return true;
+        }
+
+        frozen = false;
+        return false;
+    }
+
+    /**
+    *  Extension to the ERC884 standard, put in place for migration purposes
+    *  in a case of a security breach or similar event. This will essentially paralyze
+    *  the token contract into a state where it can not be modified anymore.
+    *  The consequences of this function are final and can not be undone. Use with caution.
+    */
+    function freezeSuper()
+        public
+        onlyOwner
+        isNotClosed
+    {
+        frozen = true;
+        closed = true;
+    }
+
+    /**
+    *  Extension to the ERC884 standard, a toggle function allowing the manager/controller
+    *  to freeze funds of a specific individual.
+    *  @return A boolean indicating whether funds are frozen or not after function call
+    */
+    function lock(address _addr)
+        public
+        onlyOwner
+        isNotClosed
+        returns (bool)
+    {
+        if (locked[_addr]) {
+            locked[_addr] = false;
+            return false;
+        }
+
+        locked[_addr] = true;
+        return true;
     }
 
     /**
@@ -344,6 +408,7 @@ contract SecurityToken is ERC884, MintableToken {
         if (addr == ZERO_ADDRESS) {
             return false;
         }
+
         return verified[addr] == hash;
     }
 
@@ -391,7 +456,24 @@ contract SecurityToken is ERC884, MintableToken {
         if (candidate == ZERO_ADDRESS) {
             return addr;
         }
+
         return findCurrentFor(candidate);
+    }
+
+    /**
+    *  Extension to the ERC884 standard to check whether an account is locked or not.
+    *  @return A boolean indicating whether funds are frozen or not.
+    */
+    function isLocked(address _addr)
+        public
+        view
+        returns (bool)
+    {
+        if (locked[_addr]) {
+            return true;
+        }
+
+        return false;
     }
 
     /**
@@ -433,76 +515,5 @@ contract SecurityToken is ERC884, MintableToken {
         shareholders.length--;
         // and zero out the index for addr
         holderIndices[addr] = 0;
-    }
-
-    /**
-    *  Extension to the ERC884 standard, a toggle function allowing the manager/controller
-    *  to freeze/unfreeze all transfers.
-    *  @return A boolean indicating whether funds are frozen or not after function call.
-    */
-    function freeze() 
-        public 
-        onlyOwner 
-        isNotClosed
-        returns (bool)
-    {
-        if (!frozen) {
-            frozen = true;
-            return true;
-        } else {
-            frozen = false;
-            return false;
-        }
-    }
-
-    /**
-    *  Extension to the ERC884 standard, put in place for migration purposes
-    *  in a case of a security breach or similar event. This will essentially paralyze
-    *  the token contract into a state where it can not be modified anymore.
-    *  The consequences of this function are final and can not be undone. Use with caution.
-    */
-    function freezeSuper()
-        public
-        onlyOwner
-        isNotClosed
-    {
-        frozen = true;
-        closed = true;
-    }
-
-    /**
-    *  Extension to the ERC884 standard, a toggle function allowing the manager/controller
-    *  to freeze funds of a specific individual.
-    *  @return A boolean indicating whether funds are frozen or not after function call
-    */
-    function lock(address _addr)
-        public
-        onlyOwner
-        isNotClosed
-        returns (bool)
-    {
-        if (locked[_addr]) {
-            locked[_addr] = false;
-            return false;
-        } else {
-            locked[_addr] = true;
-            return true;
-        }
-    }
-
-    /**
-    *  Extension to the ERC884 standard to check whether an account is locked or not.
-    *  @return A boolean indicating whether funds are frozen or not.
-    */
-    function isLocked(address _addr)
-        public
-        view
-        returns (bool)
-    {
-        if (locked[_addr]) {
-            return true;
-        } else {
-            return false;
-        }
     }
 }
