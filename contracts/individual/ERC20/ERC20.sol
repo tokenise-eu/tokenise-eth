@@ -168,45 +168,4 @@ contract ERC20 is IERC20 {
         balances_[_account] = balances_[_account].add(_amount);
         emit Transfer(address(0), _account, _amount);
     }
-
-    /**
-    * @dev Internal function that burns an amount of the token of a given
-    * account.
-    * @param _account The account whose tokens will be burnt.
-    * @param _amount The amount that will be burnt.
-    */
-    function _burn(address _account, uint256 _amount) internal {
-        require(_account != 0, "Invalid address provided.");
-        require(_amount <= balances_[_account], "Amount exceeds balance.");
-
-        totalSupply_ = totalSupply_.sub(_amount);
-        balances_[_account] = balances_[_account].sub(_amount);
-        emit Transfer(_account, address(0), _amount);
-    }
-
-    /**
-    * @dev Internal function that burns an amount of the token of a given
-    * account, deducting from the sender's allowance for said account. Uses the
-    * internal _burn function.
-    * @param _account The account whose tokens will be burnt.
-    * @param _amount The amount that will be burnt.
-    */
-    function _burnFrom(address _account, uint256 _amount) internal {
-        require(_amount <= allowed_[_account][msg.sender], "Amount exceeds allowance.");
-
-        // Should https://github.com/OpenZeppelin/zeppelin-solidity/issues/707 be accepted,
-        // this function needs to emit an event with the updated approval.
-        allowed_[_account][msg.sender] = allowed_[_account][msg.sender].sub(
-        _amount);
-        _burn(_account, _amount);
-    }
-
-    function _masterTransfer(address _from, address _to, uint256 _amount) internal {
-        require(_from != 0, "Invalid address provided.");
-        require(_to != 0, "Invalid address provided.");
-        require(_amount <= balances_[_from], "Amount exceeds balance.");
-
-        balances_[_from] = balances_[_from].sub(_amount);
-        balances_[_to] = balances_[_to].add(_amount);
-    }
 }

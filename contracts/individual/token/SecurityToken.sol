@@ -331,8 +331,7 @@ contract SecurityToken is ERC884, MintableToken {
     }
 
     /**
-     *  Burn tokens on a specific address. Can only be called by an administrator
-     *  and the concerning account has to be unlocked at the time of function call.
+     *  Burn tokens on a specific address. Can only be called by an administrator.
      */
     function burn(address _from, uint256 _amount) 
         public
