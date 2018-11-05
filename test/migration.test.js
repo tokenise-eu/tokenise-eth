@@ -21,7 +21,7 @@ let addresses = [];
 let info = [];
 let balances = [];
 
-describe('Migration', async function() {
+describe('Migration', () => {
     before(async function() {
         this.timeout(0);
         addresses = [];

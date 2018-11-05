@@ -126,3 +126,32 @@ describe('Freezing', () => {
         }
     });
 });
+
+describe('Master transfers', () => {
+    it('should allow the manager to transfer any tokens', async () => {
+        await controller.methods.masterTransfer(holder2, whitelisted, 50).send({ from: manager, gas: '1000000' });
+        let holder2Balance = await tokenContract.methods.balanceOf(holder2).call();
+        let whitelistedBalance = await tokenContract.methods.balanceOf(whitelisted).call()
+
+        assert.equal(holder2Balance, 150);
+        assert.equal(whitelistedBalance, 50);
+    });
+
+    it('should not allow the manager to transfer to non-whitelisted people', async () => {
+        try {
+            await controller.methods.masterTransfer(holder2, hacker, 50).send({ from: manager, gas: '1000000' });
+            assert(false);
+        } catch (e) {
+            assert(true);
+        }
+    });
+    
+    it('should not allow anybody else to call the master transfer function', async () => {
+        try {
+            await controller.methods.masterTransfer(holder2, holder1, 50).send({ from: hacker, gas: '1000000' });
+            assert(false);
+        } catch (e) {
+            assert(true);
+        }
+    });
+});
