@@ -29,25 +29,6 @@ contract SecurityController is Ownable {
     bool public deployed;
     bool public migrated;
     bool public closed;
-
-    /**
-     *  This event is emitted when the administrator toggles the freezing of transfers.
-     */
-    event Freeze();
-
-    /**
-     *  This event is emitted when a certain address is locked or unlocked.
-     *  @param locked The address that's being locked or unlocked.
-     */
-    event Lock(address indexed locked);
-
-    /**
-     *  This event is emitted when the migration function is called.
-     *  This will happen in the event of a security breach, or a platform migration.
-     *  This event will signal the off-chain applications to pack up migration
-     *  data and prepare to re-deploy it on another contract or platform.
-     */
-    event Migrate();
     
     /**
      *  This event is emitted when a newly deployed token contract is properly
@@ -182,7 +163,6 @@ contract SecurityController is Ownable {
         isDeployed 
         returns (bool) 
     {
-        emit Freeze();
         return token.freeze();
     }
 
@@ -198,7 +178,6 @@ contract SecurityController is Ownable {
         isDeployed 
         returns (bool) 
     {
-        emit Lock(_addr);
         return token.lock(_addr);
     }
 
@@ -252,7 +231,7 @@ contract SecurityController is Ownable {
             // This will return false if verification failed, so we won't need to check it here.
             return token.mint(_address, _balance);
         }
-        
+
         // Check if verification went through if account did not have any tokens.
         return token.isVerified(_address);
     }
@@ -287,7 +266,6 @@ contract SecurityController is Ownable {
         notClosed 
         isDeployed 
     {
-        emit Migrate();
         closed = true;
         token.freezeSuper();
         selfdestruct(manager);

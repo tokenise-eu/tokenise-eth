@@ -762,6 +762,36 @@ contract SecurityToken is ERC884, MintableToken {
     bool public frozen = false;
     bool public closed = false;
 
+    /**
+     *  This event is emitted when the administrator freezes transfers.
+     */
+    event Freeze();
+
+    /**
+     *  This event is emitted when the administrator unfreezes transfers.
+     */
+    event Unfreeze();
+
+    /**
+     *  This event is emitted when a certain address is locked.
+     *  @param locked The address that's being locked.
+     */
+    event Lock(address indexed locked);
+
+    /**
+     *  This event is emitted when a certain address is unlocked.
+     *  @param unlocked The address that's being unlocked.
+     */
+    event Unlock(address indexed unlocked);
+
+    /**
+     *  This event is emitted when the migration function is called.
+     *  This will happen in the event of a security breach, or a platform migration.
+     *  This event will signal the off-chain applications to pack up migration
+     *  data and prepare to re-deploy it on another contract or platform.
+     */
+    event Migrate();
+
     modifier isVerifiedAddress(address addr) {
         require(verified[addr] != ZERO_BYTES, "Not a valid address.");
         _;
@@ -1047,10 +1077,12 @@ contract SecurityToken is ERC884, MintableToken {
     {
         if (!frozen) {
             frozen = true;
+            emit Freeze();
             return true;
         }
 
         frozen = false;
+        emit Unfreeze();
         return false;
     }
 
@@ -1067,6 +1099,7 @@ contract SecurityToken is ERC884, MintableToken {
     {
         frozen = true;
         closed = true;
+        emit Migrate();
     }
 
     /**
@@ -1082,10 +1115,12 @@ contract SecurityToken is ERC884, MintableToken {
     {
         if (locked[_addr]) {
             locked[_addr] = false;
+            emit Lock(_addr);
             return false;
         }
 
         locked[_addr] = true;
+        emit Unlock(_addr);
         return true;
     }
 
@@ -1224,17 +1259,21 @@ contract SecurityToken is ERC884, MintableToken {
         if (balance > 0) {
             return;
         }
+        
         uint256 holderIndex = holderIndices[addr] - 1;
-        uint256 lastIndex = shareholders.length - 1;
-        address lastHolder = shareholders[lastIndex];
-        // overwrite the addr's slot with the last shareholder
+        address lastHolder = shareholders[shareholders.length - 1];
+
+        // Overwrite the addr's slot with the last shareholder
         shareholders[holderIndex] = lastHolder;
-        // also copy over the index (thanks @mohoff for spotting this)
+
+        // Also copy over the index (thanks @mohoff for spotting this)
         // ref https://github.com/davesag/ERC884-reference-implementation/issues/20
         holderIndices[lastHolder] = holderIndices[addr];
-        // trim the shareholders array (which drops the last entry)
+
+        // Trim the shareholders array (which drops the last entry)
         shareholders.length--;
-        // and zero out the index for addr
+
+        // And zero out the index for addr
         holderIndices[addr] = 0;
     }
 }
@@ -1265,25 +1304,6 @@ contract SecurityController is Ownable {
     bool public deployed;
     bool public migrated;
     bool public closed;
-
-    /**
-     *  This event is emitted when the administrator toggles the freezing of transfers.
-     */
-    event Freeze();
-
-    /**
-     *  This event is emitted when a certain address is locked or unlocked.
-     *  @param locked The address that's being locked or unlocked.
-     */
-    event Lock(address indexed locked);
-
-    /**
-     *  This event is emitted when the migration function is called.
-     *  This will happen in the event of a security breach, or a platform migration.
-     *  This event will signal the off-chain applications to pack up migration
-     *  data and prepare to re-deploy it on another contract or platform.
-     */
-    event Migrate();
     
     /**
      *  This event is emitted when a newly deployed token contract is properly
@@ -1418,7 +1438,6 @@ contract SecurityController is Ownable {
         isDeployed 
         returns (bool) 
     {
-        emit Freeze();
         return token.freeze();
     }
 
@@ -1434,7 +1453,6 @@ contract SecurityController is Ownable {
         isDeployed 
         returns (bool) 
     {
-        emit Lock(_addr);
         return token.lock(_addr);
     }
 
@@ -1523,7 +1541,6 @@ contract SecurityController is Ownable {
         notClosed 
         isDeployed 
     {
-        emit Migrate();
         closed = true;
         token.freezeSuper();
         selfdestruct(manager);
