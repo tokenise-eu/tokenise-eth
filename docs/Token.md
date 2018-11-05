@@ -200,7 +200,7 @@ modifier isNotClosed() {
     _;
 }
 ```
-<sup>• Lines 74-77 of SecurityToken.sol</sup>
+<sup>• Lines 104-107 of SecurityToken.sol</sup>
 
 These functions include `mint`, `addVerified`, `removeVerified`, `updateVerified`, `cancelAndReissue`, `masterTransfer`, `burn`, `freeze`, and `lock`. Additionally, upon migration the contract will be frozen as well, stopping transfers from happening. The contract can be set up for migration with the `freezeSuper` function.
 
@@ -212,9 +212,10 @@ function freezeSuper()
 {
     frozen = true;
     closed = true;
+    emit Migrate();
 }
 ```
-<sup>• Lines 342-349 in SecurityToken.sol</sup>
+<sup>• Lines 374-382 in SecurityToken.sol</sup>
 
 This will set the values appropriately. Afterwards, the contract is essentially locked down so that nothing about it can be changed. This makes migration a good option in the event a security breach is detected, and will need to be protected from attackers exploiting the contract while a fix is being prepared.
 
