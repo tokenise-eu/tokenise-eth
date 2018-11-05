@@ -12,7 +12,6 @@ The Tokenise.eu Ethereum smart contracts are designed to be regulatory-compliant
 4. [Issuance](#Issuance)
 5. [Migration](#Migration)
 6. [Burning](#Burning)
-7. [Admin-level](#Admin-level)
 
 ## Whitelisting
 
@@ -95,11 +94,38 @@ function removeVerified(address addr)
 
 ## Transfers
 
+Like a standard token contracts, transfers can be made through the `transfer` and `transferFrom` methods available on the contract.
 
+```
+function transfer(address to, uint256 value)
+    public
+    isNotFrozen
+    isNotLocked(msg.sender)
+    isNotLocked(to)
+    isVerifiedAddress(to)
+    returns (bool)
+{
+    updateShareholders(to);
+    pruneShareholders(msg.sender, value);
+    return super.transfer(to, value);
+}
+```
+<sup>• Lines 282-293 in SecurityToken.sol</sup>
+
+The `transferFrom` function is identical, apart from the function name and the call to `super.transferFrom`. These functions point to the standard transfer functions that are included in the ERC-20 standard. On top of that, the token contract checks if:
+* the contract is not frozen
+* both accounts are unlocked
+* the receiver is whitelisted
+
+If all these conditions are met, then the function executes.
+
+### Master transfers
+
+The administrator is also allowed to move any tokens from any whitelisted address to another whitelisted address, in case of an investor losing his keys or a regulatory coercion.
 
 ## Restrictions
 
-As an extension to the ERC-884 standard, the contract allows an administrator to either lock up individual accounts, or to freeze all accounts simultaneously. This is done by simple toggle functions in the contract.
+As an extension to the ERC-884 standard, the contract allows an administrator to either lock up individual accounts, or to freeze all accounts simultaneously. This is done by simple toggle functions in the controller, which will call the contract's own functions.
 
 ### Freezing
 
@@ -186,7 +212,26 @@ function isLocked(address _addr)
 
 ## Issuance
 
+Issuance is quite straight-forward on the contract side, and should ideally be managed completely from a dashboard perspective. To issue tokens, use the `issue` function.
 
+```
+function issue(address _to, uint256 _amount)
+        public
+        onlyOwner
+        canMint
+        isNotClosed
+        isVerifiedAddress(_to)
+        returns (bool)
+    {
+        // If the address does not already own share then
+        // add the address to the shareholders array and record the index.
+        updateShareholders(_to);
+        return super.mint(_to, _amount);
+    }
+```
+<sup>• Lines 137-149 in SecurityToken.sol</sup>
+
+The passed address will receive the amount of tokens specified. The address will have to be whitelisted beforehand to receive newly issued tokens.
 
 ## Migration
 
@@ -225,8 +270,18 @@ Calling `freezeSuper` will emit a `Migrate` event which will be picked up on by 
 
 ## Burning
 
+Burning is quite straight-forward, and can only be done by the administrator. This is also something that's best done through a dashboard, but we'll go over the contract function here.
 
-
-## Admin-level
+```
+function burn(address _from, uint256 _amount) 
+    public
+    onlyOwner
+    isNotClosed
+{
+    pruneShareholders(_from, _amount);
+    super._burn(_from, _amount);
+}
+```
+<sup>• Lines 336-343 in SecurityToken.sol</sup>
 
 
