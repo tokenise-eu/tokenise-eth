@@ -270,7 +270,7 @@ Calling `freezeSuper` will emit a `Migrate` event which will be picked up on by 
 
 ## Burning
 
-Burning is quite straight-forward, and can only be done by the administrator. This is also something that's best done through a dashboard, but we'll go over the contract function here.
+Burning is quite straight-forward, and can only be done by the administrator.
 
 ```
 function burn(address _from, uint256 _amount) 
