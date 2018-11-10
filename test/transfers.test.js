@@ -5,57 +5,35 @@ const provider = ganache.provider({ gasLimit: 10000000 });
 const Web3 = require('web3');
 const web3 = new Web3(provider);
 
-const scripts = require('../scripts');
+const utils = require('../utils');
 
 const assert = require('assert');
 
-let deployer;
-let manager;
+let admin;
 let holder1;
 let holder2;
 let whitelisted;
 let hacker;
 
-let controller;
 let tokenContract;
 
 beforeEach(async function() {
     this.timeout(0);
     let accounts = await web3.eth.getAccounts();
-    deployer = accounts[0];
-    manager = accounts[1];
-    holder1 = accounts[2];
-    holder2 = accounts[3];
-    whitelisted = accounts[4];
+    admin = accounts[0];
+    holder1 = accounts[1];
+    holder2 = accounts[2];
+    whitelisted = accounts[3];
     hacker = accounts[9];
 
-    let result = await scripts.Deploy(provider);
-    let controllerAddress = result.tokenInterface;
-    let tokenContractAddress = result.tokenContract;
-
-    const compiledController = require('../build/SecurityController.json');
-    const compiledToken = require('../build/SecurityToken.json');
-
-    controller = new web3.eth.Contract(JSON.parse(compiledController.interface), controllerAddress);
-    tokenContract = new web3.eth.Contract(JSON.parse(compiledToken.interface), tokenContractAddress);
-
-    // Whitelist accounts
-    await controller.methods.whitelist(holder1, 'Test').send({ from: deployer, gas: '1000000' });
-    await controller.methods.whitelist(holder2, 'Test').send({ from: deployer, gas: '1000000' });
-    await controller.methods.whitelist(whitelisted, 'Test').send({ from: deployer, gas: '1000000' });
-
-    // Issue shares
-    await controller.methods.issue(holder1, 100).send({ from: deployer, gas: '1000000' });
-    await controller.methods.issue(holder2, 200).send({ from: deployer, gas: '1000000' });
-
-    // Hand off to manager
-    await scripts.Migrate(controller, deployer, manager);
+    tokenContract = await utils.Setup(web3, accounts);
 });
 
 describe('Transfers', () => {
-    it('should allow transfers between whitelisted accounts', async () => {
+    it('should allow transfers between verified accounts', async () => {
         try {
             await tokenContract.methods.transfer(whitelisted, 50).send({ from: holder2, gas: '1000000' });
+            assert(true);
         } catch (e) {
             assert(false);
         }
@@ -72,83 +50,15 @@ describe('Transfers', () => {
         await tokenContract.methods.transfer(whitelisted, 50).send({ from: holder2, gas: '1000000' });
 
         let holder2Balance = await tokenContract.methods.balanceOf(holder2).call();
-        assert.equal(holder2Balance, 150);
+        assert.strictEqual(holder2Balance, '150', 'Contract did not update balance properly for holder2');
 
         let whitelistedBalance = await tokenContract.methods.balanceOf(whitelisted).call();
-        assert.equal(whitelistedBalance, 50);
+        assert.strictEqual(whitelistedBalance, '50', 'Contract did not update balance properly for whitelisted');
     });
 
-    it('should not allow transfers between whitelisted accounts and non-whitelisted accounts', async () => {
+    it('should not allow transfers to unverified accounts', async () => {
         try {
             await tokenContract.methods.transfer(hacker, 50).send({ from: holder2, gas: '1000000' });
-            assert(false);
-        } catch (e) {
-            assert(true);
-        }
-    });
-});
-
-describe('Locking', () => {
-    beforeEach(async () => {
-        await controller.methods.lock(holder1).send({ from: manager, gas: '1000000' });
-    });
-
-    it('should not allow transfers to locked account', async () => {
-        try {
-            await tokenContract.methods.transfer(holder1, 50).send({ from: holder2, gas: '1000000' });
-            assert(false);
-        } catch (e) {
-            assert(true);
-        }
-    });
-
-    it('should not allow transfers from locked account', async () => {
-        try {
-            await tokenContract.methods.transfer(holder2, 50).send({ from: holder1, gas: '1000000' });
-            assert(false);
-        } catch (e) {
-            assert(true);
-        }
-    });
-});
-
-describe('Freezing', () => {
-    beforeEach(async () => {
-        await controller.methods.freeze().send({ from: manager, gas: '1000000' });
-    });
-
-    it('should not allow transfers while the contract is frozen', async () => {
-        try {
-            await tokenContract.methods.transfer(holder1, 50).send({ from: holder2, gas: '1000000' });
-            assert(false);
-        } catch (e) {
-            assert(true);
-        }
-    });
-});
-
-describe('Master transfers', () => {
-    it('should allow the manager to transfer any tokens', async () => {
-        await controller.methods.masterTransfer(holder2, whitelisted, 50).send({ from: manager, gas: '1000000' });
-        let holder2Balance = await tokenContract.methods.balanceOf(holder2).call();
-        let whitelistedBalance = await tokenContract.methods.balanceOf(whitelisted).call()
-
-        assert.equal(holder2Balance, 150);
-        assert.equal(whitelistedBalance, 50);
-    });
-
-    it('should not allow the manager to transfer to non-whitelisted people', async () => {
-        try {
-            await controller.methods.masterTransfer(holder2, hacker, 50).send({ from: manager, gas: '1000000' });
-            assert(false);
-        } catch (e) {
-            assert(true);
-        }
-    });
-    
-    it('should not allow anybody else to call the master transfer function', async () => {
-        try {
-            await controller.methods.masterTransfer(holder2, holder1, 50).send({ from: hacker, gas: '1000000' });
             assert(false);
         } catch (e) {
             assert(true);

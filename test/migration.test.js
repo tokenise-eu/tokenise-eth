@@ -5,16 +5,14 @@ const provider = ganache.provider({ gasLimit: 10000000 });
 const Web3 = require('web3');
 const web3 = new Web3(provider);
 
-const scripts = require('../scripts');
+const utils = require('../utils');
 const fs = require('fs');
 const csv = require('csv-parser');
 
 const assert = require('assert');
 
-let deployer;
-let manager;
+let admin;
 
-let controller;
 let tokenContract;
 
 let addresses = [];
@@ -28,18 +26,12 @@ describe('Migration', () => {
         info = [];
         balances = [];
         let accounts = await web3.eth.getAccounts();
-        deployer = accounts[0];
-        manager = accounts[1];
+        admin = accounts[0];
     
-        let result = await scripts.Deploy(provider);
-        let controllerAddress = result.tokenInterface;
-        let tokenContractAddress = result.tokenContract;
-    
-        const compiledController = require('../build/SecurityController.json');
         const compiledToken = require('../build/SecurityToken.json');
-    
-        controller = new web3.eth.Contract(JSON.parse(compiledController.interface), controllerAddress);
-        tokenContract = new web3.eth.Contract(JSON.parse(compiledToken.interface), tokenContractAddress);
+        tokenContract = await new web3.eth.Contract(JSON.parse(compiledToken.interface))
+            .deploy({ data: compiledToken.bytecode, arguments: ['Test', 'TST'] })
+            .send({ from: admin, gas: '7000000' });
     
         const readData = new Promise((resolve, reject) => {
             fs.createReadStream('./test/data.csv')
@@ -55,7 +47,7 @@ describe('Migration', () => {
         await readData;
     
         try {
-            await scripts.Migrate(controller, deployer, manager, addresses, info, balances);
+            await utils.Migrate(tokenContract, admin, addresses, info, balances);
         } catch (e) {
             console.log('Migration failed: ', e.message);
         }
@@ -67,9 +59,7 @@ describe('Migration', () => {
 
         for (let i = 0; i < addresses.length; i++) {
             let verified = await tokenContract.methods.isVerified(addresses[i]).call();
-            if (verified === false) {
-                result = false;
-            }
+            assert(verified, 'Contract did not verify address ' + addresses[i] + ' upon migration.');
         }
 
         assert(result);
@@ -78,20 +68,16 @@ describe('Migration', () => {
     it('should have the right amount of shareholders upon migration', async () => {
         // There are 10 addresses in the csv with a 0 balance; these will not show up for holderCount()
         let holderCount = await tokenContract.methods.holderCount().call();
-        assert.equal(holderCount, 233);
+        assert.strictEqual(holderCount, '233');
     });
 
     it('should have the correct hashes', async function() {
         this.timeout(0);
-        let result = true;
-
+ 
         for (let i = 0; i < addresses.length; i++) {
-            let check = await controller.methods.check(addresses[i], info[i]).call();
-            if (check === false) {
-                result = false;
-            }
+            let infoHash = utils.Hash(info[i]);
+            let check = await tokenContract.methods.hasHash(addresses[i], infoHash).call();
+            assert(check, 'Contract does not hold the correct information hash for ' + addresses[i] + '.');
         }
-
-        assert(result);
     });
 });

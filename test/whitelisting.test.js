@@ -5,51 +5,28 @@ const provider = ganache.provider({ gasLimit: 10000000 });
 const Web3 = require('web3');
 const web3 = new Web3(provider);
 
-const scripts = require('../scripts');
+const utils = require('../utils');
 
 const assert = require('assert');
 
-let deployer;
-let manager;
+let admin;
 let holder1;
 let holder2;
 let whitelisted;
 let hacker;
 
-let controller;
 let tokenContract;
 
 beforeEach(async function() {
     this.timeout(0);
     let accounts = await web3.eth.getAccounts();
-    deployer = accounts[0];
-    manager = accounts[1];
-    holder1 = accounts[2];
-    holder2 = accounts[3];
-    whitelisted = accounts[4];
+    admin = accounts[0];
+    holder1 = accounts[1];
+    holder2 = accounts[2];
+    whitelisted = accounts[3];
     hacker = accounts[9];
 
-    let result = await scripts.Deploy(provider);
-    let controllerAddress = result.tokenInterface;
-    let tokenContractAddress = result.tokenContract;
-
-    const compiledController = require('../build/SecurityController.json');
-    const compiledToken = require('../build/SecurityToken.json');
-
-    controller = new web3.eth.Contract(JSON.parse(compiledController.interface), controllerAddress);
-    tokenContract = new web3.eth.Contract(JSON.parse(compiledToken.interface), tokenContractAddress);
-
-    // Whitelist accounts
-    await controller.methods.whitelist(holder1, 'Test').send({ from: deployer, gas: '1000000' });
-    await controller.methods.whitelist(holder2, 'Test').send({ from: deployer, gas: '1000000' });
-    await controller.methods.whitelist(whitelisted, 'Test').send({ from: deployer, gas: '1000000' });
-
-    // Issue shares
-    await controller.methods.issue(holder1, 100).send({ from: deployer, gas: '1000000' });
-    await controller.methods.issue(holder2, 200).send({ from: deployer, gas: '1000000' });
-
-    // Hand off to manager
-    await scripts.Migrate(controller, deployer, manager);
+    tokenContract = await utils.Setup(web3, accounts);
 });
 
 describe('Whitelisting', () => {
@@ -82,8 +59,37 @@ describe('Whitelisting', () => {
         let holder2Balance = await tokenContract.methods.balanceOf(holder2).call();
         let whitelistedBalance = await tokenContract.methods.balanceOf(whitelisted).call();
 
-        assert.equal(holder1Balance, 100);
-        assert.equal(holder2Balance, 200);
-        assert.equal(whitelistedBalance, 0);
+        assert.strictEqual(holder1Balance, '100', 'holder1 balance is not listed properly.');
+        assert.strictEqual(holder2Balance, '200', 'holder2 balance is not listed properly.');
+        assert.strictEqual(whitelistedBalance, '0', 'whitelisted balance is not listed properly.');
+    });
+
+    it('should correctly update information hashes', async () => {
+        let infoHash = utils.Hash('Test');
+        let hasHash = await tokenContract.methods.hasHash(holder1, infoHash).call();
+
+        assert(hasHash, 'holder1 does not have the correct hash on setup.');
+
+        let infoHash2 = utils.Hash('Test2');
+        await tokenContract.methods.updateVerified(holder1, infoHash2).send({ from: admin, gas: '1000000' });
+        let hasHash2 = await tokenContract.methods.hasHash(holder1, infoHash2).call();
+
+        assert(hasHash2, 'holder1 information hash not updated properly.');
+    });
+
+    it('should correctly remove accounts from the whitelist', async () => {
+        await tokenContract.methods.removeVerified(whitelisted).send({ from: admin, gas: '1000000' });
+        let verified = await tokenContract.methods.isVerified(whitelisted).call();
+    
+        assert(!verified);
+    });
+
+    it('should not allow the administrator to remove an account while it is still a shareholder', async () => {
+        try {
+            await tokenContract.methods.removeVerified(holder1).send({ from: admin, gas: '1000000' });
+            assert(false);
+        } catch (e) {
+            assert(true);
+        }
     });
 });
