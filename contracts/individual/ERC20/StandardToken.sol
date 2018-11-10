@@ -127,13 +127,4 @@ contract StandardToken is ERC20, BasicToken {
         _amount);
         _burn(_account, _amount);
     }
-
-    function _masterTransfer(address _from, address _to, uint256 _amount) internal {
-        require(_from != 0, "Invalid address provided.");
-        require(_to != 0, "Invalid address provided.");
-        require(_amount <= balances[_from], "Amount exceeds balance.");
-
-        balances[_from] = balances[_from].sub(_amount);
-        balances[_to] = balances[_to].add(_amount);
-    }
 }

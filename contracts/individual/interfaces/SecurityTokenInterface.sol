@@ -7,6 +7,8 @@ import "../ERC20/ERC20.sol";
  *  149th General Assembly, Senate Bill No. 69: An act to Amend Title 8
  *  of the Delaware Code Relating to the General Corporation Law.
  *
+ *  This implementation is based on the ERC-884 standard.
+ *
  *  Implementation Details.
  *
  *  An implementation of this token standard SHOULD provide the following:
@@ -23,7 +25,7 @@ import "../ERC20/ERC20.sol";
  *
  *  @dev Ref https://github.com/ethereum/EIPs/pull/884
  */
-contract ERC884 is ERC20 {
+contract SecurityTokenInterface is ERC20 {
 
     /**
      *  This event is emitted when a verified address and associated identity hash are
@@ -76,11 +78,36 @@ contract ERC884 is ERC20 {
         address indexed sender
     );
 
-    event MasterTransfer(
-        address indexed from,
-        address indexed to,
-        uint256 value
-    );
+    /**
+     *  This event is emitted when the administrator freezes or unfreezes transfers.
+     *  @param frozen Indicates whether the contract was frozen or unfrozen.
+     */
+    event Freeze(bool frozen);
+
+    /**
+     *  This event is emitted when a certain address is locked or unlocked.
+     *  @param addr The address that's being locked or unlocked.
+     *  @param locked Indicates whether the address was locked or unlocked.
+     */
+    event Lock(address indexed addr, bool locked);
+
+    /**
+     *  This event is emitted when the migration function is called.
+     *  This will happen in the event of a security breach, or a platform migration.
+     *  This event will signal the off-chain applications to pack up their
+     *  databases and upload the files to a cloud storage, from which the data
+     *  can be pulled later when reinstating the tokens on a new contract/platform.
+     */
+    event Migrate();
+
+    /**
+     *  Issue an amount of tokens to the specified address. If the address was
+     *  not holding any tokens beforehand, they get added to the shareholders array.
+     *  @param to The address that will receive the issued tokens.
+     *  @param amount The amount of tokens to issue.
+     *  @return A boolean that indicates if the operation was successful.
+     */
+    function issue(address to, uint256 amount) public returns (bool);
 
     /**
      *  Add a verified address, along with an associated verification hash to the contract.
@@ -126,6 +153,25 @@ contract ERC884 is ERC20 {
     function cancelAndReissue(address original, address replacement) public;
 
     /**
+    * Extension to the ERC884 standard, allowing the administrator
+    * to freeze all transfers.
+    */
+    function freeze() public;
+
+    /**
+     * Extension to the ERC884 standard, put in place for migration purposes
+     * in a case of a security breach or similar event.
+     */
+    function migrate() public;
+
+    /**
+     * Extension to the ERC884 standard, allowing the administrator
+     * to freeze funds of a specific individual.
+     * @return a bool to indicate whether funds are frozen or not after function call
+     */
+    function lock(address _addr) public;
+
+    /**
      *  Tests that the supplied address is known to the contract.
      *  @param addr The address to test.
      *  @return true if the address is known to the contract.
@@ -143,7 +189,7 @@ contract ERC884 is ERC20 {
      *  Checks that the supplied hash is associated with the given address.
      *  @param addr The address to test.
      *  @param hash The hash to test.
-     *  @return true if the hash matches the one supplied with the address in `addVerified`, or `updateVerified`.
+     *  @return A boolean indicating if the hash matches the one supplied with the address in `addVerified`, or `updateVerified`.
      */
     function hasHash(address addr, bytes32 hash) public view returns (bool);
 
@@ -179,28 +225,9 @@ contract ERC884 is ERC20 {
     function getCurrentFor(address addr) public view returns (address);
 
     /**
-    * Extension to the ERC884 standard, allowing the manager/controller
-    * to freeze all transfers.
-    * @return a bool to indicate if the operation was successful.
-    */
-    function freeze() public returns (bool);
-
-    /**
-    * Extension to the ERC884 standard, put in place for migration purposes
-    * in a case of a security breach or similar event.
-    */
-    function freezeSuper() public;
-
-    /**
-    * Extension to the ERC884 standard, allowing the manager/controller
-    * to freeze funds of a specific individual.
-    * @return a bool to indicate whether funds are frozen or not after function call
-    */
-    function lock(address _addr) public returns (bool);
-
-    /**
-    * Extension to the ERC884 standard to check whether an account is locked or not.
-    * @return a bool to indicate whether funds are frozen or not.
-    */
-    function isLocked(address _addr) public view returns (bool);
+     *  Extension to the ERC884 standard to check whether an account is locked or not.
+     *  @param addr The address to check locked status for.
+     *  @return a bool to indicate whether funds are frozen or not.
+     */
+    function isLocked(address addr) public view returns (bool);
 }

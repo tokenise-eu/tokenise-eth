@@ -1,28 +1,18 @@
 pragma solidity 0.4.25;
 
-import "./ERC884.sol";
+import "../interfaces/SecurityTokenInterface.sol";
 import "../ERC20/MintableToken.sol";
 
 /**
  * @title Security token
- * An `ERC20` compatible token that conforms to Delaware State Senate,
- * 149th General Assembly, Senate Bill No. 69: An act to Amend Title 8
- * of the Delaware Code Relating to the General Corporation Law.
- *
- * Implementation Details.
- *
- * An implementation of this token standard SHOULD provide the following:
- *
- * `name` - for use by wallets and exchanges.
- * `symbol` - for use by wallets and exchanges.
- *
- * In addition to the above the following optional `ERC20` function MUST be defined.
- *
- * `decimals` — MUST return `0` as each token represents a single Share and Shares are non-divisible.
- *
+ * 
+ * SecurityToken represents a token contract that keeps a ledger of 
+ * tokenised securities. This implementation is based on the ERC-884
+ * standard, which is compliant with Delaware State securities law.
+ * 
  * @dev Ref https://github.com/ethereum/EIPs/blob/master/EIPS/eip-884.md
  */
-contract SecurityToken is ERC884, MintableToken {
+contract SecurityToken is SecurityTokenInterface, MintableToken {
 
     bytes32 constant private ZERO_BYTES = bytes32(0);
     address constant private ZERO_ADDRESS = address(0);
@@ -40,36 +30,6 @@ contract SecurityToken is ERC884, MintableToken {
 
     bool public frozen = false;
     bool public closed = false;
-
-    /**
-     *  This event is emitted when the administrator freezes transfers.
-     */
-    event Freeze();
-
-    /**
-     *  This event is emitted when the administrator unfreezes transfers.
-     */
-    event Unfreeze();
-
-    /**
-     *  This event is emitted when a certain address is locked.
-     *  @param locked The address that's being locked.
-     */
-    event Lock(address indexed locked);
-
-    /**
-     *  This event is emitted when a certain address is unlocked.
-     *  @param unlocked The address that's being unlocked.
-     */
-    event Unlock(address indexed unlocked);
-
-    /**
-     *  This event is emitted when the migration function is called.
-     *  This will happen in the event of a security breach, or a platform migration.
-     *  This event will signal the off-chain applications to pack up migration
-     *  data and prepare to re-deploy it on another contract or platform.
-     */
-    event Migrate();
 
     modifier isVerifiedAddress(address addr) {
         require(verified[addr] != ZERO_BYTES, "Not a valid address.");
@@ -92,17 +52,17 @@ contract SecurityToken is ERC884, MintableToken {
     }
 
     modifier isNotFrozen() {
-        assert(!frozen);
+        require(!frozen, "Token contract is currently frozen.");
         _;
     }
 
-    modifier isNotLocked(address _addr) {
-        require(!locked[_addr], "Address is currently locked.");
+    modifier isNotLocked(address addr) {
+        require(!locked[addr], "Address is currently locked.");
         _;
     }
     
     modifier isNotClosed() {
-        assert(!closed);
+        require(!closed, "Token contract has been migrated and is no longer functional.");
         _;
     }
 
@@ -114,6 +74,7 @@ contract SecurityToken is ERC884, MintableToken {
     constructor(string _name, string _symbol) 
         public 
     {
+        super.initialize(msg.sender);
         name = _name;
         symbol = _symbol;
     }
@@ -121,60 +82,31 @@ contract SecurityToken is ERC884, MintableToken {
     /**
      *  Fallback function. Rejects payments and returns the spent gas.
      */
-    function() 
-        public 
-        payable 
+    function()
+        public
+        payable
     {
         revert("This contract does not accept payments.");
     }
 
     /**
-     *  As each token is minted it is added to the shareholders array.
-     *  @param _to The address that will receive the minted tokens.
-     *  @param _amount The amount of tokens to mint.
+     *  Issue an amount of tokens to the specified address. If the address was
+     *  not holding any tokens beforehand, they get added to the shareholders array.
+     *  @param to The address that will receive the issued tokens.
+     *  @param amount The amount of tokens to issue.
      *  @return A boolean that indicates if the operation was successful.
      */
-    function mint(address _to, uint256 _amount)
+    function issue(address to, uint256 amount)
         public
         onlyOwner
-        canMint
         isNotClosed
-        isVerifiedAddress(_to)
+        isVerifiedAddress(to)
         returns (bool)
     {
         // If the address does not already own share then
         // add the address to the shareholders array and record the index.
-        updateShareholders(_to);
-        return super.mint(_to, _amount);
-    }
-
-    /**
-     *  The number of addresses that own tokens.
-     *  @return the number of unique addresses that own tokens.
-     */
-    function holderCount()
-        public
-        view
-        returns (uint)
-    {
-        return shareholders.length;
-    }
-
-    /**
-     *  By counting the number of token holders using `holderCount`
-     *  you can retrieve the complete list of token holders, one at a time.
-     *  It MUST throw if `index >= holderCount()`.
-     *  @param index The zero-based index of the holder.
-     *  @return The address of the token holder with the given index.
-     */
-    function holderAt(uint256 index)
-        public
-        onlyOwner
-        view
-        returns (address)
-    {
-        require(index < shareholders.length, "Index out of range of shareholders array.");
-        return shareholders[index];
+        updateShareholders(to);
+        return super.issue(to, amount);
     }
 
     /**
@@ -194,6 +126,7 @@ contract SecurityToken is ERC884, MintableToken {
         require(addr != ZERO_ADDRESS, "Invalid address provided.");
         require(hash != ZERO_BYTES, "Invalid data hash provided.");
         require(verified[addr] == ZERO_BYTES, "Address has been verified already.");
+
         verified[addr] = hash;
         emit VerifiedAddressAdded(addr, hash, msg.sender);
     }
@@ -211,6 +144,7 @@ contract SecurityToken is ERC884, MintableToken {
         isNotClosed
     {
         require(balances[addr] == 0, "Address still holds tokens. Please empty the account before removing it from the list.");
+
         if (verified[addr] != ZERO_BYTES) {
             verified[addr] = ZERO_BYTES;
             emit VerifiedAddressRemoved(addr, msg.sender);
@@ -259,8 +193,8 @@ contract SecurityToken is ERC884, MintableToken {
         isNotShareholder(replacement)
         isVerifiedAddress(replacement)
     {
-        // replace the original address in the shareholders array
-        // and update all the associated mappings
+        // Replace the original address in the shareholders array
+        // and update all the associated mappings.
         verified[original] = ZERO_BYTES;
         cancellations[original] = replacement;
         uint256 holderIndex = holderIndices[original] - 1;
@@ -313,55 +247,32 @@ contract SecurityToken is ERC884, MintableToken {
     }
 
     /**
-     *  Allow the administrator to move any tokens in the contract, in case of a
-     *  regulatory issue with one or more accounts on the contract.
-     *  Employs all the basic checks and record keeping done by `transfer` and `transferFrom`.
-     */
-    function masterTransfer(address _from, address _to, uint256 _amount)
-        public
-        onlyOwner
-        isNotClosed
-        isVerifiedAddress(_to)
-        returns (bool)
-    {
-        updateShareholders(_to);
-        pruneShareholders(_from, _amount);
-        super._masterTransfer(_from, _to, _amount);
-        emit MasterTransfer(_from, _to, _amount);
-    }
-
-    /**
      *  Burn tokens on a specific address. Can only be called by an administrator.
+     *  If the amount is equal to the address' holdings, then the function will 
+     *  remove it from the shareholders array.
+     *  @param from The address to burn the tokens from.
+     *  @param amount The amount of tokens to burn.
      */
-    function burn(address _from, uint256 _amount) 
+    function burn(address from, uint256 amount) 
         public
         onlyOwner
         isNotClosed
     {
-        pruneShareholders(_from, _amount);
-        super._burn(_from, _amount);
+        pruneShareholders(from, amount);
+        super._burn(from, amount);
     }
 
     /**
     *  Extension to the ERC884 standard, a toggle function allowing the manager/controller
     *  to freeze/unfreeze all transfers.
-    *  @return A boolean indicating whether funds are frozen or not after function call.
     */
     function freeze() 
         public 
         onlyOwner 
         isNotClosed
-        returns (bool)
     {
-        if (!frozen) {
-            frozen = true;
-            emit Freeze();
-            return true;
-        }
-
-        frozen = false;
-        emit Unfreeze();
-        return false;
+        frozen = !frozen;
+        emit Freeze(frozen);
     }
 
     /**
@@ -370,7 +281,7 @@ contract SecurityToken is ERC884, MintableToken {
     *  the token contract into a state where it can not be modified anymore.
     *  The consequences of this function are final and can not be undone. Use with caution.
     */
-    function freezeSuper()
+    function migrate()
         public
         onlyOwner
         isNotClosed
@@ -383,23 +294,43 @@ contract SecurityToken is ERC884, MintableToken {
     /**
     *  Extension to the ERC884 standard, a toggle function allowing the manager/controller
     *  to freeze funds of a specific individual.
-    *  @return A boolean indicating whether funds are frozen or not after function call
     */
-    function lock(address _addr)
+    function lock(address addr)
         public
         onlyOwner
         isNotClosed
-        returns (bool)
     {
-        if (locked[_addr]) {
-            locked[_addr] = false;
-            emit Lock(_addr);
-            return false;
-        }
+        locked[addr] = !locked[addr];
+        emit Lock(addr, locked[addr]);
+    }
 
-        locked[_addr] = true;
-        emit Unlock(_addr);
-        return true;
+    /**
+     *  The number of addresses that own tokens.
+     *  @return the number of unique addresses that own tokens.
+     */
+    function holderCount()
+        public
+        view
+        returns (uint)
+    {
+        return shareholders.length;
+    }
+
+    /**
+     *  By counting the number of token holders using `holderCount`
+     *  you can retrieve the complete list of token holders, one at a time.
+     *  It MUST throw if `index >= holderCount()`.
+     *  @param index The zero-based index of the holder.
+     *  @return The address of the token holder with the given index.
+     */
+    function holderAt(uint256 index)
+        public
+        onlyOwner
+        view
+        returns (address)
+    {
+        require(index < shareholders.length, "Index out of range of shareholders array.");
+        return shareholders[index];
     }
 
     /**
@@ -477,6 +408,19 @@ contract SecurityToken is ERC884, MintableToken {
     }
 
     /**
+     *  Extension to the ERC884 standard to check whether an account is locked or not.
+     *  @param addr The address to check locked status for.
+     *  @return A boolean indicating whether funds are frozen or not.
+     */
+    function isLocked(address addr)
+        public
+        view
+        returns (bool)
+    {
+        return locked[addr];
+    }
+
+    /**
      *  Recursively find the most recent address given a superseded one.
      *  @param addr The superseded address.
      *  @return The verified address that ultimately holds the share.
@@ -492,22 +436,6 @@ contract SecurityToken is ERC884, MintableToken {
         }
 
         return findCurrentFor(candidate);
-    }
-
-    /**
-    *  Extension to the ERC884 standard to check whether an account is locked or not.
-    *  @return A boolean indicating whether funds are frozen or not.
-    */
-    function isLocked(address _addr)
-        public
-        view
-        returns (bool)
-    {
-        if (locked[_addr]) {
-            return true;
-        }
-
-        return false;
     }
 
     /**
@@ -538,15 +466,18 @@ contract SecurityToken is ERC884, MintableToken {
             return;
         }
 
-        uint256 holderIndex = holderIndices[addr] - 1;
+        // If the address is not the last one in the array, swap it
         address lastHolder = shareholders[shareholders.length - 1];
+        if (addr != lastHolder) {
+            uint256 holderIndex = holderIndices[addr] - 1;
 
-        // Overwrite the addr's slot with the last shareholder
-        shareholders[holderIndex] = lastHolder;
+            // Overwrite the addr's slot with the last shareholder
+            shareholders[holderIndex] = lastHolder;
 
-        // Also copy over the index (thanks @mohoff for spotting this)
-        // ref https://github.com/davesag/ERC884-reference-implementation/issues/20
-        holderIndices[lastHolder] = holderIndices[addr];
+            // Also copy over the index (thanks @mohoff for spotting this)
+            // ref https://github.com/davesag/ERC884-reference-implementation/issues/20
+            holderIndices[lastHolder] = holderIndices[addr];
+        }
 
         // Trim the shareholders array (which drops the last entry)
         shareholders.length--;
