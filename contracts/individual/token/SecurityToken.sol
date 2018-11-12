@@ -168,6 +168,7 @@ contract SecurityToken is SecurityTokenInterface, MintableToken {
         isVerifiedAddress(addr)
     {
         require(hash != ZERO_BYTES, "Invalid data hash provided.");
+        
         bytes32 oldHash = verified[addr];
         if (oldHash != hash) {
             verified[addr] = hash;
@@ -221,9 +222,13 @@ contract SecurityToken is SecurityTokenInterface, MintableToken {
         isVerifiedAddress(to)
         returns (bool)
     {
-        updateShareholders(to);
-        pruneShareholders(msg.sender, value);
-        return super.transfer(to, value);
+        if (super.transfer(to, value)) {
+            updateShareholders(to);
+            pruneShareholders(msg.sender, value);
+            return true;
+        }
+
+        return false;
     }
 
     /**
@@ -241,9 +246,13 @@ contract SecurityToken is SecurityTokenInterface, MintableToken {
         isVerifiedAddress(to)
         returns (bool)
     {
-        updateShareholders(to);
-        pruneShareholders(from, value);
-        return super.transferFrom(from, to, value);
+        if (super.transferFrom(from, to, value)) {
+            updateShareholders(to);
+            pruneShareholders(from, value);
+            return true;
+        }
+
+        return false;
     }
 
     /**
