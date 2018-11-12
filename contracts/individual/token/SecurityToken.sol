@@ -465,7 +465,7 @@ contract SecurityToken is SecurityTokenInterface, MintableToken {
      *  transfer or transferFrom will reduce their balance to 0, then
      *  we need to remove them from the shareholders array.
      *  @param addr The address to prune if their balance will be reduced to 0.
-     @  @dev see https://ethereum.stackexchange.com/a/39311
+     *  @dev see https://ethereum.stackexchange.com/a/39311
      */
     function pruneShareholders(address addr, uint256 value)
         internal
