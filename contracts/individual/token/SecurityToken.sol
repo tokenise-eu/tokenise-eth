@@ -103,10 +103,12 @@ contract SecurityToken is SecurityTokenInterface, MintableToken {
         isVerifiedAddress(to)
         returns (bool)
     {
-        // If the address does not already own share then
-        // add the address to the shareholders array and record the index.
-        updateShareholders(to);
-        return super.issue(to, amount);
+        if (super.issue(to, amount)) {
+            updateShareholders(to);
+            return true;
+        }
+
+        return false;
     }
 
     /**
@@ -267,8 +269,8 @@ contract SecurityToken is SecurityTokenInterface, MintableToken {
         onlyOwner
         isNotClosed
     {
-        pruneShareholders(from, amount);
         super._burn(from, amount);
+        pruneShareholders(from, amount);
     }
 
     /**
