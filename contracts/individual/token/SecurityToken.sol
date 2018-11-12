@@ -272,9 +272,9 @@ contract SecurityToken is SecurityTokenInterface, MintableToken {
     }
 
     /**
-    *  Extension to the ERC884 standard, a toggle function allowing the administrator
-    *  to freeze/unfreeze all transfers.
-    */
+     *  Extension to the ERC884 standard, a toggle function allowing the administrator
+     *  to freeze/unfreeze all transfers.
+     */
     function freeze() 
         public 
         onlyOwner 
@@ -285,11 +285,11 @@ contract SecurityToken is SecurityTokenInterface, MintableToken {
     }
 
     /**
-    *  Extension to the ERC884 standard, put in place for migration purposes
-    *  in a case of a security breach or similar event. This will essentially paralyze
-    *  the token contract into a state where it can not be modified anymore.
-    *  The consequences of this function are final and can not be undone. Use with caution.
-    */
+     *  Extension to the ERC884 standard, put in place for migration purposes
+     *  in a case of a security breach or similar event. This will essentially paralyze
+     *  the token contract into a state where it can not be modified anymore.
+     *  The consequences of this function are final and can not be undone. Use with caution.
+     */
     function migrate()
         public
         onlyOwner
@@ -301,9 +301,9 @@ contract SecurityToken is SecurityTokenInterface, MintableToken {
     }
 
     /**
-    *  Extension to the ERC884 standard, a toggle function allowing the administrator
-    *  to freeze funds of a specific individual.
-    */
+     *  Extension to the ERC884 standard, a toggle function allowing the administrator
+     *  to freeze funds of a specific individual.
+     */
     function lock(address addr)
         public
         onlyOwner
