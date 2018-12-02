@@ -1,38 +1,38 @@
 'use strict';
 
-const ganache = require('ganache-cli');
-const provider = ganache.provider({ gasLimit: 10000000 });
-const Web3 = require('web3');
-const web3 = new Web3(provider);
-
-const utils = require('../utils');
-
-const assert = require('assert');
-
-let admin;
-let holder1;
-let holder2;
-let whitelisted;
-let hacker;
-
+const SecurityToken = artifacts.require('SecurityToken');
 let tokenContract;
 
-beforeEach(async function() {
-    this.timeout(0);
-    let accounts = await web3.eth.getAccounts();
-    admin = accounts[0];
-    holder1 = accounts[1];
-    holder2 = accounts[2];
-    whitelisted = accounts[3];
-    hacker = accounts[9];
+const hash = require('./helpers/hash');
 
-    tokenContract = await utils.Setup(web3, accounts);
-});
+contract('Transfers', async (accounts) => {
+    before(async () => {
+        tokenContract = await SecurityToken.deployed();
 
-describe('Transfers', () => {
+        const infoHash = hash('Test');
+
+        // Whitelist accounts
+        await tokenContract.addVerified(accounts[1], infoHash, { from: accounts[0], gas: '1000000' });
+        await tokenContract.addVerified(accounts[2], infoHash, { from: accounts[0], gas: '1000000' });
+        await tokenContract.addVerified(accounts[3], infoHash, { from: accounts[0], gas: '1000000' });
+
+        // Issue shares
+        await tokenContract.issue(accounts[1], 100, { from: accounts[0], gas: '1000000' });
+        await tokenContract.issue(accounts[2], 200, { from: accounts[0], gas: '1000000' });
+    });
+
+    it('should reject standard payments', async () => {
+        try {
+            await tokenContract.sendTransaction({ from: accounts[0], value: '1000000' });
+            assert(false);
+        } catch (e) {
+            assert(true);
+        }
+    });
+
     it('should allow transfers between verified accounts', async () => {
         try {
-            await tokenContract.methods.transfer(whitelisted, 50).send({ from: holder2, gas: '1000000' });
+            await tokenContract.transfer(accounts[3], 50, { from: accounts[2], gas: '1000000' });
             assert(true);
         } catch (e) {
             assert(false);
@@ -40,28 +40,38 @@ describe('Transfers', () => {
     });
 
     it('should update holders after transfer', async () => {
-        await tokenContract.methods.transfer(whitelisted, 50).send({ from: holder2, gas: '1000000' });
-
-        let isHolderAfterTransfer = await tokenContract.methods.isHolder(whitelisted).call();
+        let isHolderAfterTransfer = await tokenContract.isHolder.call(accounts[3]);
         assert(isHolderAfterTransfer);
     });
 
     it('should update balances after transfer', async () => {
-        await tokenContract.methods.transfer(whitelisted, 50).send({ from: holder2, gas: '1000000' });
+        let holder2Balance = await tokenContract.balanceOf.call(accounts[2]);
+        assert.strictEqual(holder2Balance.toString(), '150', 'Contract did not update balance properly for accounts[2]');
 
-        let holder2Balance = await tokenContract.methods.balanceOf(holder2).call();
-        assert.strictEqual(holder2Balance, '150', 'Contract did not update balance properly for holder2');
-
-        let whitelistedBalance = await tokenContract.methods.balanceOf(whitelisted).call();
-        assert.strictEqual(whitelistedBalance, '50', 'Contract did not update balance properly for whitelisted');
+        let whitelistedBalance = await tokenContract.balanceOf.call(accounts[3]);
+        assert.strictEqual(whitelistedBalance.toString(), '50', 'Contract did not update balance properly for accounts[3]');
     });
 
     it('should not allow transfers to unverified accounts', async () => {
         try {
-            await tokenContract.methods.transfer(hacker, 50).send({ from: holder2, gas: '1000000' });
+            await tokenContract.transfer(accounts[9], 50, { from: accounts[2], gas: '1000000' });
             assert(false);
         } catch (e) {
             assert(true);
         }
+    });
+
+    it('should allow transferFrom functionality', async () => {
+        await tokenContract.approve(accounts[1], 50, { from: accounts[3], gas: '1000000' });
+        await tokenContract.transferFrom(accounts[3], accounts[2], 50, { from: accounts[1], gas: '1000000' });
+
+        assert(true);
+    });
+
+    it('should remove investors as shareholders if they transfer out all of their tokens', async () => {
+        await tokenContract.transfer(accounts[3], 100, { from: accounts[1], gas: '1000000' });
+        let isHolder = await tokenContract.isHolder.call(accounts[1]);
+
+        assert(!isHolder, 'accounts[1] is still considered a holder with a 0 balance');
     });
 });

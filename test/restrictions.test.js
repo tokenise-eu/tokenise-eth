@@ -1,42 +1,36 @@
 'use strict';
 
-const ganache = require('ganache-cli');
-const provider = ganache.provider({ gasLimit: 10000000 });
-const Web3 = require('web3');
-const web3 = new Web3(provider);
-
-const utils = require('../utils');
-
-const assert = require('assert');
-
-let admin;
-let holder1;
-let holder2;
-let whitelisted;
-let hacker;
-
+const SecurityToken = artifacts.require('SecurityToken');
 let tokenContract;
 
-beforeEach(async function() {
-    this.timeout(0);
-    let accounts = await web3.eth.getAccounts();
-    admin = accounts[0];
-    holder1 = accounts[1];
-    holder2 = accounts[2];
-    whitelisted = accounts[3];
-    hacker = accounts[9];
+const hash = require('./helpers/hash');
 
-    tokenContract = await utils.Setup(web3, accounts);
-});
+contract('Locking/Freezing', async (accounts) => {
+    before(async () => {
+        tokenContract = await SecurityToken.deployed();
+    
+        const infoHash = hash('Test');
+    
+        // Whitelist accounts
+        await tokenContract.addVerified(accounts[1], infoHash, { from: accounts[0], gas: '1000000' });
+        await tokenContract.addVerified(accounts[2], infoHash, { from: accounts[0], gas: '1000000' });
+        await tokenContract.addVerified(accounts[3], infoHash, { from: accounts[0], gas: '1000000' });
+    
+        // Issue shares
+        await tokenContract.issue(accounts[1], 100, { from: accounts[0], gas: '1000000' });
+        await tokenContract.issue(accounts[2], 200, { from: accounts[0], gas: '1000000' });
+    });
 
-describe('Locking', () => {
-    beforeEach(async () => {
-        await tokenContract.methods.lock(holder1).send({ from: admin, gas: '1000000' });
+    it('should allow the admin to lock an account', async () => {
+        await tokenContract.lock(accounts[1], { from: accounts[0], gas: '1000000' });
+        let locked = await tokenContract.isLocked.call(accounts[1]);
+
+        assert(locked);
     });
 
     it('should not allow transfers to locked account', async () => {
         try {
-            await tokenContract.methods.transfer(holder1, 50).send({ from: holder2, gas: '1000000' });
+            await tokenContract.transfer(accounts[1], 50, { from: accounts[2], gas: '1000000' });
             assert(false);
         } catch (e) {
             assert(true);
@@ -45,25 +39,40 @@ describe('Locking', () => {
 
     it('should not allow transfers from locked account', async () => {
         try {
-            await tokenContract.methods.transfer(holder2, 50).send({ from: holder1, gas: '1000000' });
+            await tokenContract.transfer(accounts[2], 50, { from: accounts[1], gas: '1000000' });
             assert(false);
         } catch (e) {
             assert(true);
         }
     });
-});
 
-describe('Freezing', () => {
-    beforeEach(async () => {
-        await tokenContract.methods.freeze().send({ from: admin, gas: '1000000' });
+    it('should allow the admin to unlock an account', async () => {
+        await tokenContract.lock(accounts[1], { from: accounts[0], gas: '1000000' });
+        let locked = await tokenContract.isLocked.call(accounts[1]);
+
+        assert(!locked);
+    });
+
+    it('should allow the admin to freeze the contract', async () => {
+        await tokenContract.freeze({ from: accounts[0], gas: '1000000' });
+        let frozen = await tokenContract.frozen();
+
+        assert(frozen);
     });
 
     it('should not allow transfers while the contract is frozen', async () => {
         try {
-            await tokenContract.methods.transfer(holder1, 50).send({ from: holder2, gas: '1000000' });
+            await tokenContract.transfer(accounts[1], 50, { from: accounts[2], gas: '1000000' });
             assert(false);
         } catch (e) {
             assert(true);
         }
+    });
+
+    it('should allow the admin to unfreeze the contract', async () => {
+        await tokenContract.freeze({ from: accounts[0], gas: '1000000' });
+        let frozen = await tokenContract.frozen();
+
+        assert(!frozen);
     });
 });

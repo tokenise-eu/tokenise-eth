@@ -1,41 +1,36 @@
 'use strict';
 
-const ganache = require('ganache-cli');
-const provider = ganache.provider({ gasLimit: 10000000 });
-const Web3 = require('web3');
-const web3 = new Web3(provider);
-
-const utils = require('../utils');
-
-const assert = require('assert');
-
-let admin;
-let whitelisted;
-let hacker;
-
+const SecurityToken = artifacts.require('SecurityToken');
 let tokenContract;
 
-beforeEach(async function() {
-    this.timeout(0);
-    let accounts = await web3.eth.getAccounts();
-    admin = accounts[0];
-    whitelisted = accounts[3];
-    hacker = accounts[9];
+const hash = require('./helpers/hash');
 
-    tokenContract = await utils.Setup(web3, accounts);
-});
+contract('Issuance', async (accounts) => {
+    before(async () => {
+        tokenContract = await SecurityToken.deployed();
 
-describe('Issuance', () => {
+        const infoHash = hash('Test');
+
+        // Whitelist accounts
+        await tokenContract.addVerified(accounts[1], infoHash, { from: accounts[0], gas: '1000000' });
+        await tokenContract.addVerified(accounts[2], infoHash, { from: accounts[0], gas: '1000000' });
+        await tokenContract.addVerified(accounts[3], infoHash, { from: accounts[0], gas: '1000000' });
+
+        // Issue shares
+        await tokenContract.issue(accounts[1], 100, { from: accounts[0], gas: '1000000' });
+        await tokenContract.issue(accounts[2], 200, { from: accounts[0], gas: '1000000' });
+    });
+
     it('should allow the administrator to issue more tokens to verified accounts', async () => {
-        await tokenContract.methods.issue(whitelisted, 500).send({ from: admin, gas: '1000000' });
-        let balance = await tokenContract.methods.balanceOf(whitelisted).call();
+        await tokenContract.issue(accounts[3], 500, { from: accounts[0], gas: '1000000' });
+        let balance = await tokenContract.balanceOf.call(accounts[3]);
 
-        assert.strictEqual(balance, '500');
+        assert.strictEqual(balance.toString(), '500');
     });
 
     it('should not allow anybody else to issue tokens', async () => {
         try {
-            await tokenContract.methods.issue(whitelisted, 500).send({ from: hacker, gas: '1000000' });
+            await tokenContract.issue(accounts[3], 500, { from: accounts[9], gas: '1000000' });
             assert(false);
         } catch (e) {
             assert(true);
@@ -44,7 +39,7 @@ describe('Issuance', () => {
 
     it('should not allow the administrator to issue tokens to an unverified account', async () => {
         try {
-            await tokenContract.methods.issue(hacker, 500).send({ from: admin, gas: '1000000' });
+            await tokenContract.issue(accounts[9], 500, { from: accounts[0], gas: '1000000' });
             assert(false);
         } catch (e) {
             assert(true);

@@ -1,43 +1,36 @@
 'use strict';
 
-const ganache = require('ganache-cli');
-const provider = ganache.provider({ gasLimit: 10000000 });
-const Web3 = require('web3');
-const web3 = new Web3(provider);
-
-const utils = require('../utils');
-
-const assert = require('assert');
-
-let admin;
-let holder1;
-let holder2;
-let hacker;
-
+const SecurityToken = artifacts.require('SecurityToken');
 let tokenContract;
 
-beforeEach(async function() {
-    this.timeout(0);
-    let accounts = await web3.eth.getAccounts();
-    admin = accounts[0];
-    holder1 = accounts[1];
-    holder2 = accounts[2];
-    hacker = accounts[9];
+const hash = require('./helpers/hash');
 
-    tokenContract = await utils.Setup(web3, accounts);
-});
+contract('Burning', async (accounts) => {
+    before(async () => {
+        tokenContract = await SecurityToken.deployed();
 
-describe('Burning', () => {
+        const infoHash = hash('Test');
+
+        // Whitelist accounts
+        await tokenContract.addVerified(accounts[1], infoHash, { from: accounts[0], gas: '1000000' });
+        await tokenContract.addVerified(accounts[2], infoHash, { from: accounts[0], gas: '1000000' });
+        await tokenContract.addVerified(accounts[3], infoHash, { from: accounts[0], gas: '1000000' });
+
+        // Issue shares
+        await tokenContract.issue(accounts[1], 100, { from: accounts[0], gas: '1000000' });
+        await tokenContract.issue(accounts[2], 200, { from: accounts[0], gas: '1000000' });
+    });
+
     it('should allow the administrator to burn tokens', async () => {
-        await tokenContract.methods.burn(holder1, 50).send({ from: admin, gas: '1000000' });
-        let newBalance = await tokenContract.methods.balanceOf(holder1).call();
+        await tokenContract.burn(accounts[1], 50, { from: accounts[0], gas: '1000000' });
+        let newBalance = await tokenContract.balanceOf.call(accounts[1]);
         
-        assert.strictEqual(newBalance, '50');
+        assert.strictEqual(newBalance.toString(), '50');
     });
 
     it('should not allow the administrator to burn more than the account balance', async () => {
         try {
-            await tokenContract.methods.burn(holder2, 300).send({ from: admin, gas: '1000000' });
+            await tokenContract.burn(accounts[2], 300, { from: accounts[0], gas: '1000000' });
             assert(false);
         } catch (e) {
             assert(true);
@@ -46,7 +39,7 @@ describe('Burning', () => {
 
     it('should not allow anybody else to call the burn function', async () => {
         try {
-            await tokenContract.methods.burn(holder2, 50).send({ from: hacker, gas: '1000000' });
+            await tokenContract.burn(accounts[2], 50, { from: accounts[0], gas: '1000000' });
             assert(false);
         } catch (e) {
             assert(true);

@@ -14,9 +14,9 @@ async function migrate(tokenContract, admin, addresses, info, balances) {
         for (let i = 0; i < addresses.length; i++) {
             try {
                 let infoHash = hash(info[i]);
-                await tokenContract.methods.addVerified(addresses[i], infoHash).send({ from: admin, gas: '1000000'});
+                await tokenContract.addVerified(addresses[i], infoHash, { from: admin, gas: '1000000'});
                 if (balances[i] > 0) {
-                    await tokenContract.methods.issue(addresses[i], balances[i]).send({ from: admin, gas: '1000000' });
+                    await tokenContract.issue(addresses[i], balances[i], { from: admin, gas: '1000000' });
                 }
             } catch (e) {
                 throw Error(e.message);
