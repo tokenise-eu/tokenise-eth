@@ -1,7 +1,8 @@
 pragma solidity 0.4.25;
 
-import "../interfaces/SecurityTokenInterface.sol";
-import "../ERC20/MintableToken.sol";
+import "./SecurityTokenInterface.sol";
+import "openzeppelin-solidity/contracts/token/ERC20/ERC20Mintable.sol";
+import "openzeppelin-solidity/contracts/ownership/Ownable.sol";
 
 /**
  * @title Security token
@@ -12,12 +13,11 @@ import "../ERC20/MintableToken.sol";
  * 
  * @dev Ref https://github.com/ethereum/EIPs/blob/master/EIPS/eip-884.md
  */
-contract SecurityToken is SecurityTokenInterface, MintableToken {
-
+contract SecurityToken is SecurityTokenInterface, ERC20Mintable, Ownable {
     bytes32 constant private ZERO_BYTES = bytes32(0);
     address constant private ZERO_ADDRESS = address(0);
 
-    uint256 public decimals = 0;
+    uint8 public decimals = 0; // Has to be zero in all cases
     string public name;
     string public symbol;
 
@@ -32,12 +32,12 @@ contract SecurityToken is SecurityTokenInterface, MintableToken {
     bool public closed = false;
 
     modifier isVerifiedAddress(address addr) {
-        require(verified[addr] != ZERO_BYTES, "Not a valid address.");
+        require(verified[addr] != ZERO_BYTES, "Not a verified address");
         _;
     }
 
     modifier isShareholder(address addr) {
-        require(holderIndices[addr] != 0, "Given address is not a shareholder.");
+        require(holderIndices[addr] != 0, "Given address is not a shareholder");
         _;
     }
 
@@ -47,22 +47,22 @@ contract SecurityToken is SecurityTokenInterface, MintableToken {
     }
 
     modifier isNotCancelled(address addr) {
-        require(cancellations[addr] == ZERO_ADDRESS, "Given address is cancelled.");
+        require(cancellations[addr] == ZERO_ADDRESS, "Given address is cancelled");
         _;
     }
 
     modifier isNotFrozen() {
-        require(!frozen, "Token contract is currently frozen.");
+        require(!frozen, "Token contract is currently frozen");
         _;
     }
 
     modifier isNotLocked(address addr) {
-        require(!locked[addr], "Address is currently locked.");
+        require(!locked[addr], "Address is currently locked");
         _;
     }
     
     modifier isNotClosed() {
-        require(!closed, "Token contract has been migrated and is no longer functional.");
+        require(!closed, "Token contract has been migrated and is no longer functional");
         _;
     }
 
@@ -74,7 +74,6 @@ contract SecurityToken is SecurityTokenInterface, MintableToken {
     constructor(string _name, string _symbol) 
         public 
     {
-        super.initialize(msg.sender);
         name = _name;
         symbol = _symbol;
     }
@@ -86,7 +85,7 @@ contract SecurityToken is SecurityTokenInterface, MintableToken {
         public
         payable
     {
-        revert("This contract does not accept payments.");
+        revert("This contract does not accept payments");
     }
 
     /**
@@ -103,12 +102,8 @@ contract SecurityToken is SecurityTokenInterface, MintableToken {
         isVerifiedAddress(to)
         returns (bool)
     {
-        if (super.issue(to, amount)) {
-            updateShareholders(to);
-            return true;
-        }
-
-        return false;
+        updateShareholders(to);
+        return super.mint(to, amount);
     }
 
     /**
@@ -125,9 +120,9 @@ contract SecurityToken is SecurityTokenInterface, MintableToken {
         isNotClosed
         isNotCancelled(addr)
     {
-        require(addr != ZERO_ADDRESS, "Invalid address provided.");
-        require(hash != ZERO_BYTES, "Invalid data hash provided.");
-        require(verified[addr] == ZERO_BYTES, "Address has been verified already.");
+        require(addr != ZERO_ADDRESS, "Invalid address provided");
+        require(hash != ZERO_BYTES, "Invalid data hash provided");
+        require(verified[addr] == ZERO_BYTES, "Address has been verified already");
 
         verified[addr] = hash;
         emit VerifiedAddressAdded(addr, hash, msg.sender);
@@ -145,7 +140,7 @@ contract SecurityToken is SecurityTokenInterface, MintableToken {
         onlyOwner
         isNotClosed
     {
-        require(balances[addr] == 0, "Address still holds tokens. Please empty the account before removing it from the list.");
+        require(balanceOf(addr) == 0, "Address still holds tokens - please empty the account before removing it from the list");
 
         if (verified[addr] != ZERO_BYTES) {
             verified[addr] = ZERO_BYTES;
@@ -169,7 +164,7 @@ contract SecurityToken is SecurityTokenInterface, MintableToken {
         isNotClosed
         isVerifiedAddress(addr)
     {
-        require(hash != ZERO_BYTES, "Invalid data hash provided.");
+        require(hash != ZERO_BYTES, "Invalid data hash provided");
         
         bytes32 oldHash = verified[addr];
         if (oldHash != hash) {
@@ -204,8 +199,7 @@ contract SecurityToken is SecurityTokenInterface, MintableToken {
         shareholders[holderIndex] = replacement;
         holderIndices[replacement] = holderIndices[original];
         holderIndices[original] = 0;
-        balances[replacement] = balances[original];
-        balances[original] = 0;
+        super._transfer(original, replacement, balanceOf(original));
         emit VerifiedAddressSuperseded(original, replacement, msg.sender);
     }
 
@@ -224,13 +218,9 @@ contract SecurityToken is SecurityTokenInterface, MintableToken {
         isVerifiedAddress(to)
         returns (bool)
     {
-        if (super.transfer(to, value)) {
-            updateShareholders(to);
-            pruneShareholders(msg.sender, value);
-            return true;
-        }
-
-        return false;
+        updateShareholders(to);
+        pruneShareholders(msg.sender, value);
+        return super.transfer(to, value);
     }
 
     /**
@@ -248,13 +238,9 @@ contract SecurityToken is SecurityTokenInterface, MintableToken {
         isVerifiedAddress(to)
         returns (bool)
     {
-        if (super.transferFrom(from, to, value)) {
-            updateShareholders(to);
-            pruneShareholders(from, value);
-            return true;
-        }
-
-        return false;
+        updateShareholders(to);
+        pruneShareholders(from, value);
+        return super.transferFrom(from, to, value);
     }
 
     /**
@@ -269,8 +255,8 @@ contract SecurityToken is SecurityTokenInterface, MintableToken {
         onlyOwner
         isNotClosed
     {
-        super._burn(from, amount);
         pruneShareholders(from, amount);
+        super._burn(from, amount);
     }
 
     /**
@@ -305,6 +291,7 @@ contract SecurityToken is SecurityTokenInterface, MintableToken {
     /**
      *  Extension to the ERC884 standard, a toggle function allowing the administrator
      *  to freeze funds of a specific individual.
+     *  @param addr The address to lock/unlock.
      */
     function lock(address addr)
         public
@@ -340,7 +327,7 @@ contract SecurityToken is SecurityTokenInterface, MintableToken {
         view
         returns (address)
     {
-        require(index < shareholders.length, "Index out of range of shareholders array.");
+        require(index < shareholders.length, "Index out of range of shareholders array");
         return shareholders[index];
     }
 
@@ -381,9 +368,7 @@ contract SecurityToken is SecurityTokenInterface, MintableToken {
         view
         returns (bool)
     {
-        if (addr == ZERO_ADDRESS) {
-            return false;
-        }
+        require(addr != ZERO_ADDRESS, "Invalid address");
 
         return verified[addr] == hash;
     }
@@ -467,28 +452,26 @@ contract SecurityToken is SecurityTokenInterface, MintableToken {
      *  transfer or transferFrom will reduce their balance to 0, then
      *  we need to remove them from the shareholders array.
      *  @param addr The address to prune if their balance will be reduced to 0.
+     *  @param value The amount of tokens being deducted from the address.
      *  @dev see https://ethereum.stackexchange.com/a/39311
      */
     function pruneShareholders(address addr, uint256 value)
         internal
     {
-        uint256 balance = balances[addr] - value;
-        if (balance > 0) {
+        uint256 balance = super.balanceOf(addr);
+        if ((balance - value) > 0) {
             return;
         }
 
-        // If the address is not the last one in the array, swap it
         address lastHolder = shareholders[shareholders.length - 1];
-        if (addr != lastHolder) {
-            uint256 holderIndex = holderIndices[addr] - 1;
+        uint256 holderIndex = holderIndices[addr] - 1;
 
-            // Overwrite the addr's slot with the last shareholder
-            shareholders[holderIndex] = lastHolder;
+        // Overwrite the addr's slot with the last shareholder
+        shareholders[holderIndex] = lastHolder;
 
-            // Also copy over the index (thanks @mohoff for spotting this)
-            // ref https://github.com/davesag/ERC884-reference-implementation/issues/20
-            holderIndices[lastHolder] = holderIndices[addr];
-        }
+        // Also copy over the index (thanks @mohoff for spotting this)
+        // ref https://github.com/davesag/ERC884-reference-implementation/issues/20
+        holderIndices[lastHolder] = holderIndices[addr];
 
         // Trim the shareholders array (which drops the last entry)
         shareholders.length--;

@@ -1,8 +1,14 @@
 pragma solidity 0.4.25;
 
-import "../ERC20/ERC20.sol";
+import "openzeppelin-solidity/contracts/token/ERC20/ERC20.sol";
 
 /**
+ *  @notice This contract is an interface of the ERC-884 standard, extended
+ *  by Tokenise.eu to fit it to the desired protocol specifications.
+ *  The original contract comment follows below.
+ *
+ *  -
+ *
  *  An `ERC20` compatible token that conforms to Delaware State Senate,
  *  149th General Assembly, Senate Bill No. 69: An act to Amend Title 8
  *  of the Delaware Code Relating to the General Corporation Law.
