@@ -1,11 +1,19 @@
 {
   "name": "tokenise-eth",
   "version": "1.0.0",
-  "description": "Ethereum smart contracts (ERC-884 based) for the tokenise.eu platform",
-  "main": "index.js",
+  "description": "This repository contains the smart contracts for an Ethereum-based protocol enabling the tokenisation of financial instruments which are fully compliant with regulatory standards.",
+  "main": ".solcover.js",
   "directories": {
+    "doc": "docs",
     "test": "test"
   },
+  "dependencies": {
+    "csv-parser": "^2.1.0",
+    "openzeppelin-solidity": "^2.0.0",
+    "solidity-coverage": "^0.5.11",
+    "truffle": "^5.0.0-beta.2"
+  },
+  "devDependencies": {},
   "scripts": {
     "test": "mocha"
   },
@@ -14,17 +22,9 @@
     "url": "git+https://github.com/tokenise-eu/tokenise-eth.git"
   },
   "author": "Jules de Smit",
-  "license": "GPL-3.0",
+  "license": "ISC",
   "bugs": {
     "url": "https://github.com/tokenise-eu/tokenise-eth/issues"
   },
-  "homepage": "https://github.com/tokenise-eu/tokenise-eth#readme",
-  "dependencies": {
-    "csv-parser": "^2.0.0",
-    "fs-extra": "^7.0.0",
-    "ganache-cli": "^6.1.8",
-    "mocha": "^5.2.0",
-    "solc": "^0.4.25",
-    "web3": "^1.0.0-beta.36"
-  }
+  "homepage": "https://github.com/tokenise-eu/tokenise-eth#readme"
 }
