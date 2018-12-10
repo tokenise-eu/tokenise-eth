@@ -1,7 +1,5 @@
 # Tokenise.eu Ethereum Security Token Standard
 
-**N.B. This documentation is still in progress and may be subject to change**
-
 ## Overview
 
 The Tokenise.eu Ethereum smart contracts are designed to be regulatory-compliant and made to work in conjunction with the off-chain applications. This documentation is here to provide you with an in-depth explanation of the inner workings of the security tokens themselves, which reside on the blockchain. The contract is based on the ERC-884 standard, with some modest extensions to provide full compliance and flexibility.
@@ -37,7 +35,7 @@ function addVerified(address addr, bytes32 hash)
     emit VerifiedAddressAdded(addr, hash, msg.sender);
 }
 ```
-<sup>• Lines 122-134 in SecurityToken.sol</sup>
+<sup>• Lines 117-129 in SecurityToken.sol</sup>
 
 As shown above, the function will take an Ethereum address, along with a hash of the individual's information as the function parameters. The information has to match what is stored in the off-chain KYC database, so that exchanges and regulators are able to cross-check the information on the contract with that on the off-chain database. To ensure continuity of data, the information should be hashed with the `web3.utils.soliditySha3` function, and then converted to a byte array through `web3.utils.hexToBytes`. The `onlyOwner` modifier ensures that only an authorized entity can whitelist individuals.
 
@@ -45,7 +43,7 @@ Having the address whitelisted now allows it to pass the check for sending and r
 
 ```
 modifier isVerifiedAddress(address addr) {
-    require(verified[addr] != ZERO_BYTES, "Not a valid address.");
+    require(verified[addr] != ZERO_BYTES, "Not a valid address");
     _;
 }
 ```
@@ -64,7 +62,7 @@ function updateVerified(address addr, bytes32 hash)
     isNotClosed
     isVerifiedAddress(addr)
 {
-    require(hash != ZERO_BYTES, "Invalid data hash provided.");
+    require(hash != ZERO_BYTES, "Invalid data hash provided");
 
     bytes32 oldHash = verified[addr];
     if (oldHash != hash) {
@@ -73,7 +71,7 @@ function updateVerified(address addr, bytes32 hash)
     }
 }
 ```
-<sup>• Lines 166-179 in SecurityToken.sol</sup>
+<sup>• Lines 161-174 in SecurityToken.sol</sup>
 
 The function will simply check if the passed data hash is not empty (which would essentially remove the individual from the whitelist) and changes the old one out for the new one. The updated data hash should then match their new KYC info.
 
@@ -87,7 +85,7 @@ function removeVerified(address addr)
     onlyOwner
     isNotClosed
 {
-    require(balances[addr] == 0, "Address still holds tokens. Please empty the account before removing it from the list.");
+    require(balances[addr] == 0, "Address still holds tokens - Please empty the account before removing it from the list");
 
     if (verified[addr] != ZERO_BYTES) {
         verified[addr] = ZERO_BYTES;
@@ -95,7 +93,7 @@ function removeVerified(address addr)
     }
 }
 ```
-<sup>• Lines 143-154 in SecurityToken.sol</sup>
+<sup>• Lines 138-149 in SecurityToken.sol</sup>
 
 `removeVerified` will first check to see if the account is empty, and will throw if this condition is not met. Then, it will proceed to clear out the data hash from the `verified` mapping, preventing it from receiving or sending tokens. Again, the `onlyOwner` modifier ensures that this function can only be called by those authorized to do so.
 
@@ -112,7 +110,7 @@ function updateShareholders(address addr)
     }
 }
 ```
-<sup>• Lines 457-463 in SecurityToken.sol</sup>
+<sup>• Lines 442-448 in SecurityToken.sol</sup>
 
 This function is used if an address receives tokens. If an address is not yet included in the shareholders array, it will get added and an index will get mapped to it, for retrieval purposes later.
 
@@ -122,23 +120,20 @@ The second function is `pruneShareholders`.
 function pruneShareholders(address addr, uint256 value)
     internal
 {
-    uint256 balance = balances[addr] - value;
-    if (balance > 0) {
+    uint256 balance = super.balanceOf(addr);
+    if ((balance - value) > 0) {
         return;
     }
 
-    // If the address is not the last one in the array, swap it
     address lastHolder = shareholders[shareholders.length - 1];
-    if (addr != lastHolder) {
-        uint256 holderIndex = holderIndices[addr] - 1;
+    uint256 holderIndex = holderIndices[addr] - 1;
 
-        // Overwrite the addr's slot with the last shareholder
-        shareholders[holderIndex] = lastHolder;
+    // Overwrite the addr's slot with the last shareholder
+    shareholders[holderIndex] = lastHolder;
 
-        // Also copy over the index (thanks @mohoff for spotting this)
-        // ref https://github.com/davesag/ERC884-reference-implementation/issues/20
-        holderIndices[lastHolder] = holderIndices[addr];
-    }
+    // Also copy over the index (thanks @mohoff for spotting this)
+    // ref https://github.com/davesag/ERC884-reference-implementation/issues/20
+    holderIndices[lastHolder] = holderIndices[addr];
 
     // Trim the shareholders array (which drops the last entry)
     shareholders.length--;
@@ -147,7 +142,7 @@ function pruneShareholders(address addr, uint256 value)
     holderIndices[addr] = 0;
 }
 ```
-<sup>• Lines 472-498 in SecurityToken.sol</sup>
+<sup>• Lines 458-481 in SecurityToken.sol</sup>
 
 This function is used when an address has tokens deducted from it. If the address is not the last in the array, it will be swapped out with the last entry and then dropped off the array.
 
@@ -164,18 +159,14 @@ function transfer(address to, uint256 value)
     isVerifiedAddress(to)
     returns (bool)
 {
-    if (super.transfer(to, value)) {
-        updateShareholders(to);
-        pruneShareholders(msg.sender, value);
-        return true;
-    }
-
-    return false;
+    updateShareholders(to);
+    pruneShareholders(msg.sender, value);
+    return super.transfer(to, value);
 }
 ```
-<sup>• Lines 219-234 in SecurityToken.sol</sup>
+<sup>• Lines 213-224 in SecurityToken.sol</sup>
 
-The `transferFrom` function is identical (found at lines 243-258 in SecurityToken.sol), apart from the function name, the `from` parameter and the call to `super.transferFrom`. These `super` functions call the standard ERC-20 transfer functions. Before running them, the token contract checks if:
+The `transferFrom` function is identical (found at lines 233-244 in SecurityToken.sol), apart from the function name, the `from` parameter and the call to `super.transferFrom`. These `super` functions call the standard ERC-20 transfer functions. Before running them, the token contract checks if:
 * the contract is not frozen
 * both accounts are unlocked
 * the receiver is whitelisted
@@ -198,13 +189,13 @@ function freeze()
     emit Freeze(frozen);
 }
 ```
-<sup>• Lines 280-287 in SecurityToken.sol</sup>
+<sup>• Lines 266-273 in SecurityToken.sol</sup>
 
 The function will simply toggle the `frozen` value in the contract. The `frozen` value is used in the modifier `isNotFrozen`
 
 ```
 modifier isNotFrozen() {
-    require(!frozen, "Token contract is currently frozen.");
+    require(!frozen, "Token contract is currently frozen");
     _;
 }
 ```
@@ -224,13 +215,13 @@ function lock(address addr)
     emit Lock(addr, locked[addr]);
 }
 ```
-<sup>• Lines 309-316 in SecurityToken.sol</sup>
+<sup>• Lines 296-303 in SecurityToken.sol</sup>
 
 Another simple toggle function, allowing an individual account to be locked and prohibited from sending and receiving tokens. A locked address will produce `true` if passed to the `locked` mapping, which allows us to have the isNotLocked modifier.
 
 ```
 modifier isNotLocked(address addr) {
-    require(!locked[addr], "Address is currently locked.");
+    require(!locked[addr], "Address is currently locked");
     _;
 }
 ```
@@ -247,7 +238,7 @@ function isLocked(address addr)
     return locked[addr];
 }
 ```
-<sup>• Lines 426-432 in SecurityToken.sol</sup>
+<sup>• Lines 411-417 in SecurityToken.sol</sup>
 
 ## Issuance
 
@@ -261,15 +252,11 @@ function issue(address to, uint256 amount)
     isVerifiedAddress(to)
     returns (bool)
 {
-    if (super.issue(to, amount)) {
-        updateShareholders(to);
-        return true;
-    }
-
-    return false;
+    updateShareholders(to);
+    return super.mint(to, amount);
 }
 ```
-<sup>• Lines 99-112 in SecurityToken.sol</sup>
+<sup>• Lines 98-107 in SecurityToken.sol</sup>
 
 The passed address will receive the amount of tokens specified. The address will have to be whitelisted beforehand to receive newly issued tokens.
 
@@ -300,7 +287,7 @@ function migrate()
     emit Migrate();
 }
 ```
-<sup>• Lines 295-303 in SecurityToken.sol</sup>
+<sup>• Lines 281-289 in SecurityToken.sol</sup>
 
 This will freeze and close the contract. Afterwards, the contract is essentially locked down so that nothing about it can be changed. This makes migration a good option in the event a security breach is detected, and will need to be protected from attackers exploiting the contract while a fix is being prepared. As a side effect, the locked contract serves as an immutable snapshot of the contract state at the time of migration, and could aid in transferring data in case of any issues on the off-chain side.
 
@@ -318,27 +305,13 @@ function burn(address from, uint256 amount)
     onlyOwner
     isNotClosed
 {
-    super._burn(from, amount);
     pruneShareholders(from, amount);
+    super._burn(from, amount);
 }
 ```
-<sup>• Lines 267-274 in SecurityToken.sol</sup>
+<sup>• Lines 253-260 in SecurityToken.sol</sup>
 
 This will run `pruneShareholders` to keep the shareholders array up to date, and then make a call to `_burn`.
-
-```
-function _burn(address _account, uint256 _amount) internal {
-    require(_account != 0, "Invalid address provided.");
-    require(_amount <= balances[_account], "Amount exceeds balance.");
-
-    totalSupply_ = totalSupply_.sub(_amount);
-    balances[_account] = balances[_account].sub(_amount);
-    emit Transfer(_account, address(0), _amount);
-}
-```
-<sup>• Lines 105-112 in StandardToken.sol</sup>
-
-This function will remove the specified `_amount` from `_account`, and emit a `Transfer` event showing that the tokens were burned.
 
 ## Canceling
 
@@ -361,12 +334,11 @@ function cancelAndReissue(address original, address replacement)
     shareholders[holderIndex] = replacement;
     holderIndices[replacement] = holderIndices[original];
     holderIndices[original] = 0;
-    balances[replacement] = balances[original];
-    balances[original] = 0;
+    super._transfer(original, replacement, balanceOf(original));
     emit VerifiedAddressSuperseded(original, replacement, msg.sender);
 }
 ```
-<sup>• Lines 191-210 in SecurityToken.sol</sup>
+<sup>• Lines 186-204 in SecurityToken.sol</sup>
 
 As shown above, the contract will essentially replace one address with another, removing the original from the whitelist and moving it's balance to the replacement address. This function gives the administrator full control over any holder's tokens, and should be used with care.
 
@@ -385,7 +357,7 @@ function isVerified(address addr)
     return verified[addr] != ZERO_BYTES;
 }
 ```
-<sup>• Lines 352-358 in SecurityToken.sol</sup>
+<sup>• Lines 339-345 in SecurityToken.sol</sup>
 
 A simple function to check if an address is known to the contract. It will return either true or false depending on whether the contract has an information hash stored with the address.
 
@@ -398,7 +370,7 @@ function isHolder(address addr)
     return holderIndices[addr] != 0;
 }
 ```
-<sup>• Lines 365-371</sup>
+<sup>• Lines 352-358</sup>
 
 This function will return either true or false depending on if the address is included in the shareholders array.
 
@@ -410,13 +382,11 @@ function hasHash(address addr, bytes32 hash)
     view
     returns (bool)
 {
-    if (addr == ZERO_ADDRESS) {
-        return false;
-    }
+    require(addr != ZERO_ADDRESS, "Invalid address");
 
     return verified[addr] == hash;
 }
 ```
-<sup>• Lines 379-389 in SecurityToken.sol</sup>
+<sup>• Lines 366-374 in SecurityToken.sol</sup>
 
 The function will return either true or false depending on if the supplied hash matches the one stored in the contract and mapped to `addr`.
