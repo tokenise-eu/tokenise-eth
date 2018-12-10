@@ -156,31 +156,6 @@ contract SecurityTokenInterface is ERC20 {
     function cancelAndReissue(address original, address replacement) public;
 
     /**
-     *  The `transfer` function MUST NOT allow transfers to addresses that
-     *  have not been verified and added to the contract.
-     *  If the `to` address is not currently a shareholder then it MUST become one.
-     *  If the transfer will reduce `msg.sender`'s balance to 0 then that address
-     *  MUST be removed from the list of shareholders.
-     *  If the `to` address is locked, then the transfer will fail.
-     *  @param to The address to send the tokens to. The address MUST be verified.
-     *  @param value The amount of tokens to send.
-     */
-    function transfer(address to, uint256 value) public returns (bool);
-
-    /**
-     *  The `transferFrom` function MUST NOT allow transfers to addresses that
-     *  have not been verified and added to the contract.
-     *  If the `to` address is not currently a shareholder then it MUST become one.
-     *  If the transfer will reduce `from`'s balance to 0 then that address
-     *  MUST be removed from the list of shareholders.
-     *  If either account is locked, then the transfer will fail.
-     *  @param from The address to send the tokens from.
-     *  @param to The address to send the tokens to. The address MUST be verified.
-     *  @param value The amount of tokens to send.
-     */
-    function transferFrom(address from, address to, uint256 value) public returns (bool);
-
-    /**
      *  Burn tokens on a specific address. Can only be called by an administrator.
      *  If the amount is equal to the address' holdings, then the function will 
      *  remove it from the shareholders array.
@@ -208,7 +183,7 @@ contract SecurityTokenInterface is ERC20 {
      *  to freeze funds of a specific individual.
      *  @param addr The address to lock/unlock.
      */
-    function lock(address _addr) public;
+    function lock(address addr) public;
 
     /**
      *  The number of addresses that own tokens.
