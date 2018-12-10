@@ -29,7 +29,7 @@ contract SecurityToken is SecurityTokenInterface, ERC20Mintable, Ownable {
     address[] private shareholders;
 
     bool public frozen = false;
-    bool public closed = false;
+    bool public migrated = false;
 
     modifier isVerifiedAddress(address addr) {
         require(verified[addr] != ZERO_BYTES, "Not a verified address");
@@ -61,8 +61,8 @@ contract SecurityToken is SecurityTokenInterface, ERC20Mintable, Ownable {
         _;
     }
     
-    modifier isNotClosed() {
-        require(!closed, "Token contract has been migrated and is no longer functional");
+    modifier isNotMigrated() {
+        require(!migrated, "Token contract has been migrated and is no longer functional");
         _;
     }
 
@@ -98,7 +98,7 @@ contract SecurityToken is SecurityTokenInterface, ERC20Mintable, Ownable {
     function issue(address to, uint256 amount)
         public
         onlyOwner
-        isNotClosed
+        isNotMigrated
         isVerifiedAddress(to)
         returns (bool)
     {
@@ -117,7 +117,7 @@ contract SecurityToken is SecurityTokenInterface, ERC20Mintable, Ownable {
     function addVerified(address addr, bytes32 hash)
         public
         onlyOwner
-        isNotClosed
+        isNotMigrated
         isNotCancelled(addr)
     {
         require(addr != ZERO_ADDRESS, "Invalid address provided");
@@ -138,7 +138,7 @@ contract SecurityToken is SecurityTokenInterface, ERC20Mintable, Ownable {
     function removeVerified(address addr)
         public
         onlyOwner
-        isNotClosed
+        isNotMigrated
     {
         require(balanceOf(addr) == 0, "Address still holds tokens - please empty the account before removing it from the list");
 
@@ -161,7 +161,7 @@ contract SecurityToken is SecurityTokenInterface, ERC20Mintable, Ownable {
     function updateVerified(address addr, bytes32 hash)
         public
         onlyOwner
-        isNotClosed
+        isNotMigrated
         isVerifiedAddress(addr)
     {
         require(hash != ZERO_BYTES, "Invalid data hash provided");
@@ -181,12 +181,12 @@ contract SecurityToken is SecurityTokenInterface, ERC20Mintable, Ownable {
      *  Throw if the replacement address is not a verified address.
      *  This function MUST emit the `VerifiedAddressSuperseded` event.
      *  @param original The address to be superseded. This address MUST NOT be reused.
-     *  @param replacement The address  that supersedes the original. This address MUST be verified.
+     *  @param replacement The address that supersedes the original. This address MUST be verified.
      */
     function cancelAndReissue(address original, address replacement)
         public
         onlyOwner
-        isNotClosed
+        isNotMigrated
         isShareholder(original)
         isNotShareholder(replacement)
         isVerifiedAddress(replacement)
@@ -209,6 +209,9 @@ contract SecurityToken is SecurityTokenInterface, ERC20Mintable, Ownable {
      *  If the `to` address is not currently a shareholder then it MUST become one.
      *  If the transfer will reduce `msg.sender`'s balance to 0 then that address
      *  MUST be removed from the list of shareholders.
+     *  If the `to` address is locked, then the transfer will fail.
+     *  @param to The address to send the tokens to. The address MUST be verified.
+     *  @param value The amount of tokens to send.
      */
     function transfer(address to, uint256 value)
         public
@@ -229,6 +232,10 @@ contract SecurityToken is SecurityTokenInterface, ERC20Mintable, Ownable {
      *  If the `to` address is not currently a shareholder then it MUST become one.
      *  If the transfer will reduce `from`'s balance to 0 then that address
      *  MUST be removed from the list of shareholders.
+     *  If either account is locked, then the transfer will fail.
+     *  @param from The address to send the tokens from.
+     *  @param to The address to send the tokens to. The address MUST be verified.
+     *  @param value The amount of tokens to send.
      */
     function transferFrom(address from, address to, uint256 value)
         public
@@ -253,7 +260,7 @@ contract SecurityToken is SecurityTokenInterface, ERC20Mintable, Ownable {
     function burn(address from, uint256 amount) 
         public
         onlyOwner
-        isNotClosed
+        isNotMigrated
     {
         pruneShareholders(from, amount);
         super._burn(from, amount);
@@ -266,7 +273,7 @@ contract SecurityToken is SecurityTokenInterface, ERC20Mintable, Ownable {
     function freeze() 
         public 
         onlyOwner 
-        isNotClosed
+        isNotMigrated
     {
         frozen = !frozen;
         emit Freeze(frozen);
@@ -276,15 +283,15 @@ contract SecurityToken is SecurityTokenInterface, ERC20Mintable, Ownable {
      *  Extension to the ERC884 standard, put in place for migration purposes
      *  in a case of a security breach or similar event. This will essentially paralyze
      *  the token contract into a state where it can not be modified anymore.
-     *  The consequences of this function are final and can not be undone. Use with caution.
+     *  @notice The consequences of this function are final and can not be undone. Use with caution.
      */
     function migrate()
         public
         onlyOwner
-        isNotClosed
+        isNotMigrated
     {
         frozen = true;
-        closed = true;
+        migrated = true;
         emit Migrate();
     }
 
@@ -296,7 +303,7 @@ contract SecurityToken is SecurityTokenInterface, ERC20Mintable, Ownable {
     function lock(address addr)
         public
         onlyOwner
-        isNotClosed
+        isNotMigrated
     {
         locked[addr] = !locked[addr];
         emit Lock(addr, locked[addr]);
@@ -304,7 +311,7 @@ contract SecurityToken is SecurityTokenInterface, ERC20Mintable, Ownable {
 
     /**
      *  The number of addresses that own tokens.
-     *  @return the number of unique addresses that own tokens.
+     *  @return The number of unique addresses that own tokens.
      */
     function holderCount()
         public
@@ -347,7 +354,7 @@ contract SecurityToken is SecurityTokenInterface, ERC20Mintable, Ownable {
     /**
      *  Checks to see if the supplied address is a share holder.
      *  @param addr The address to check.
-     *  @return A boolean indicating if the supplied address owns a token.
+     *  @return A boolean indicating if the supplied address owns tokens.
      */
     function isHolder(address addr)
         public
@@ -361,7 +368,8 @@ contract SecurityToken is SecurityTokenInterface, ERC20Mintable, Ownable {
      *  Checks that the supplied hash is associated with the given address.
      *  @param addr The address to test.
      *  @param hash The hash to test.
-     *  @return A boolean indicating if the hash matches the one supplied with the address in `addVerified`, or `updateVerified`.
+     *  @return A boolean indicating if the hash matches the one supplied with the address in 
+     *  `addVerified`, or `updateVerified`.
      */
     function hasHash(address addr, bytes32 hash)
         public

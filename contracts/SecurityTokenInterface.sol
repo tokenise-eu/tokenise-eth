@@ -100,9 +100,6 @@ contract SecurityTokenInterface is ERC20 {
     /**
      *  This event is emitted when the migration function is called.
      *  This will happen in the event of a security breach, or a platform migration.
-     *  This event will signal the off-chain applications to pack up their
-     *  databases and upload the files to a cloud storage, from which the data
-     *  can be pulled later when reinstating the tokens on a new contract/platform.
      */
     event Migrate();
 
@@ -151,57 +148,71 @@ contract SecurityTokenInterface is ERC20 {
      *  Access to this function MUST be strictly controlled.
      *  The `original` address MUST be removed from the set of verified addresses.
      *  Throw if the `original` address supplied is not a shareholder.
-     *  Throw if the `replacement` address is not a verified address.
-     *  Throw if the `replacement` address already holds Tokens.
+     *  Throw if the replacement address is not a verified address.
      *  This function MUST emit the `VerifiedAddressSuperseded` event.
      *  @param original The address to be superseded. This address MUST NOT be reused.
+     *  @param replacement The address that supersedes the original. This address MUST be verified.
      */
     function cancelAndReissue(address original, address replacement) public;
 
     /**
-    * Extension to the ERC884 standard, allowing the administrator
-    * to freeze all transfers.
-    */
+     *  The `transfer` function MUST NOT allow transfers to addresses that
+     *  have not been verified and added to the contract.
+     *  If the `to` address is not currently a shareholder then it MUST become one.
+     *  If the transfer will reduce `msg.sender`'s balance to 0 then that address
+     *  MUST be removed from the list of shareholders.
+     *  If the `to` address is locked, then the transfer will fail.
+     *  @param to The address to send the tokens to. The address MUST be verified.
+     *  @param value The amount of tokens to send.
+     */
+    function transfer(address to, uint256 value) public returns (bool);
+
+    /**
+     *  The `transferFrom` function MUST NOT allow transfers to addresses that
+     *  have not been verified and added to the contract.
+     *  If the `to` address is not currently a shareholder then it MUST become one.
+     *  If the transfer will reduce `from`'s balance to 0 then that address
+     *  MUST be removed from the list of shareholders.
+     *  If either account is locked, then the transfer will fail.
+     *  @param from The address to send the tokens from.
+     *  @param to The address to send the tokens to. The address MUST be verified.
+     *  @param value The amount of tokens to send.
+     */
+    function transferFrom(address from, address to, uint256 value) public returns (bool);
+
+    /**
+     *  Burn tokens on a specific address. Can only be called by an administrator.
+     *  If the amount is equal to the address' holdings, then the function will 
+     *  remove it from the shareholders array.
+     *  @param from The address to burn the tokens from.
+     *  @param amount The amount of tokens to burn.
+     */
+    function burn(address from, uint256 amount) public;
+
+    /**
+     *  Extension to the ERC884 standard, a toggle function allowing the administrator
+     *  to freeze/unfreeze all transfers.
+     */
     function freeze() public;
 
     /**
-     * Extension to the ERC884 standard, put in place for migration purposes
-     * in a case of a security breach or similar event.
+     *  Extension to the ERC884 standard, put in place for migration purposes
+     *  in a case of a security breach or similar event. This will essentially paralyze
+     *  the token contract into a state where it can not be modified anymore.
+     *  @notice The consequences of this function are final and can not be undone. Use with caution.
      */
     function migrate() public;
 
     /**
-     * Extension to the ERC884 standard, allowing the administrator
-     * to freeze funds of a specific individual.
-     * @return a bool to indicate whether funds are frozen or not after function call
+     *  Extension to the ERC884 standard, a toggle function allowing the administrator
+     *  to freeze funds of a specific individual.
+     *  @param addr The address to lock/unlock.
      */
     function lock(address _addr) public;
 
     /**
-     *  Tests that the supplied address is known to the contract.
-     *  @param addr The address to test.
-     *  @return true if the address is known to the contract.
-     */
-    function isVerified(address addr) public view returns (bool);
-
-    /**
-     *  Checks to see if the supplied address is a share holder.
-     *  @param addr The address to check.
-     *  @return true if the supplied address owns a token.
-     */
-    function isHolder(address addr) public view returns (bool);
-
-    /**
-     *  Checks that the supplied hash is associated with the given address.
-     *  @param addr The address to test.
-     *  @param hash The hash to test.
-     *  @return A boolean indicating if the hash matches the one supplied with the address in `addVerified`, or `updateVerified`.
-     */
-    function hasHash(address addr, bytes32 hash) public view returns (bool);
-
-    /**
-     *  The number of addresses that hold tokens.
-     *  @return the number of unique addresses that hold tokens.
+     *  The number of addresses that own tokens.
+     *  @return The number of unique addresses that own tokens.
      */
     function holderCount() public view returns (uint);
 
@@ -210,14 +221,37 @@ contract SecurityTokenInterface is ERC20 {
      *  you can retrieve the complete list of token holders, one at a time.
      *  It MUST throw if `index >= holderCount()`.
      *  @param index The zero-based index of the holder.
-     *  @return the address of the token holder with the given index.
+     *  @return The address of the token holder with the given index.
      */
     function holderAt(uint256 index) public view returns (address);
 
     /**
+     *  Tests that the supplied address is known to the contract.
+     *  @param addr The address to test.
+     *  @return A boolean indicating if the address is known to the contract.
+     */
+    function isVerified(address addr) public view returns (bool);
+
+    /**
+     *  Checks to see if the supplied address is a share holder.
+     *  @param addr The address to check.
+     *  @return A boolean indicating if the supplied address owns tokens.
+     */
+    function isHolder(address addr) public view returns (bool);
+
+    /**
+     *  Checks that the supplied hash is associated with the given address.
+     *  @param addr The address to test.
+     *  @param hash The hash to test.
+     *  @return A boolean indicating if the hash matches the one supplied with the address in 
+     *  `addVerified`, or `updateVerified`.
+     */
+    function hasHash(address addr, bytes32 hash) public view returns (bool);
+
+    /**
      *  Checks to see if the supplied address was superseded.
      *  @param addr The address to check.
-     *  @return true if the supplied address was superseded by another address.
+     *  @return A boolean indicating if the supplied address was superseded by another address.
      */
     function isSuperseded(address addr) public view returns (bool);
 
@@ -226,14 +260,14 @@ contract SecurityTokenInterface is ERC20 {
      *  Addresses may be superseded multiple times, so this function needs to
      *  follow the chain of addresses until it reaches the final, verified address.
      *  @param addr The superseded address.
-     *  @return the verified address that ultimately holds the share.
+     *  @return The verified address that ultimately holds the share.
      */
     function getCurrentFor(address addr) public view returns (address);
 
     /**
      *  Extension to the ERC884 standard to check whether an account is locked or not.
      *  @param addr The address to check locked status for.
-     *  @return a bool to indicate whether funds are frozen or not.
+     *  @return A boolean indicating whether funds are frozen or not.
      */
     function isLocked(address addr) public view returns (bool);
 }
