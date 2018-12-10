@@ -2,17 +2,79 @@
 
 ## Overview
 
-The Tokenise.eu Ethereum smart contracts are designed to be regulatory-compliant and made to work in conjunction with the off-chain applications. This documentation is here to provide you with an in-depth explanation of the inner workings of the security tokens themselves, which reside on the blockchain. The contract is based on the ERC-884 standard, with some modest extensions to provide full compliance and flexibility.
+The Tokenise.eu Ethereum smart contracts are designed to be regulatory-compliant and made to work in conjunction with the off-chain applications. This documentation is here to provide you with an in-depth explanation of the inner workings of the `SecurityToken.sol` contract. The contract is based on the ERC-884 standard, with some modest extensions to provide full compliance and flexibility. The repository also includes an interface contract of `SecurityToken.sol` at `SecurityTokenInterface.sol`.
 
-1. [Whitelisting](#Whitelisting)
-2. [Shareholders](#Shareholders)
-3. [Transfers](#Transfers)
-4. [Restricting transfers](#Restrictions)
-5. [Issuance](#Issuance)
-6. [Migration](#Migration)
-7. [Burning](#Burning)
-8. [Canceling addresses](#Canceling)
-9. [Verifying](#Verifying)
+1. [Basic Specifications](#Basics)
+2. [Whitelisting](#Whitelisting)
+3. [Shareholders](#Shareholders)
+4. [Transfers](#Transfers)
+5. [Restricting transfers](#Restrictions)
+6. [Issuance](#Issuance)
+7. [Migration](#Migration)
+8. [Burning](#Burning)
+9. [Canceling addresses](#Canceling)
+10. [Verifying](#Verifying)
+
+## Basics
+
+The contract starts off with a few basic global variables.
+
+```
+bytes32 constant private ZERO_BYTES = bytes32(0);
+address constant private ZERO_ADDRESS = address(0);
+
+uint8 public decimals = 0; // Has to be zero in all cases
+string public name;
+string public symbol;
+
+mapping(address => bytes32) private verified;
+mapping(address => address) private cancellations;
+mapping(address => uint256) private holderIndices;
+mapping(address => bool) private locked;
+
+address[] private shareholders;
+
+bool public frozen = false;
+bool public migrated = false;
+```
+<sup>• Lines 17-32 in SecurityToken.sol</sup>
+
+This section declares the zero values for a hash and an address, for convenience later on. It also declares the `decimals` as 0 outright, as it will need to be set to zero (shares are indivisible). Below this it has the `name` and `symbol`, as seen on any standard ERC-20 contract. These two variables are set in the constructor.
+
+Four mappings are declared beneath this: 
+* `verified`, holding all the whitelisted addresses and a hash of their info
+* `cancellations`, holding cancelled addresses and their replacement addresses
+* `holderIndices`, holding the index of an address in the `shareholders` array (declared below)
+* `locked`, indicating the lock status of an address
+
+The `shareholders` array is declared below, and holds all of the addresses who are holding tokens at any given time.
+
+Lastly, `frozen` and `migrated` are declared, used for freezing and migrating the contract.
+
+Then, we have a constructor and a fallback function.
+
+```
+constructor(string _name, string _symbol) 
+    public 
+{
+    name = _name;
+    symbol = _symbol;
+}
+```
+<sup>• Lines 74-79 in SecurityToken.sol</sup>
+
+This constructor will simply set the name and symbol in the contract.
+
+```
+function()
+    public
+    payable
+{
+    revert("This contract does not accept payments");
+}
+```
+
+A simple fallback function that reverts any payment made to it.
 
 ## Whitelisting
 
@@ -24,7 +86,7 @@ The token contract has rules on who is allowed to send/receive/hold the tokens. 
 function addVerified(address addr, bytes32 hash)
     public
     onlyOwner
-    isNotClosed
+    isNotMigrated
     isNotCancelled(addr)
 {
     require(addr != ZERO_ADDRESS, "Invalid address provided.");
@@ -59,7 +121,7 @@ If an individual's KYC information changes while they are already whitelisted (f
 function updateVerified(address addr, bytes32 hash)
     public
     onlyOwner
-    isNotClosed
+    isNotMigrated
     isVerifiedAddress(addr)
 {
     require(hash != ZERO_BYTES, "Invalid data hash provided");
@@ -73,7 +135,7 @@ function updateVerified(address addr, bytes32 hash)
 ```
 <sup>• Lines 161-174 in SecurityToken.sol</sup>
 
-The function will simply check if the passed data hash is not empty (which would essentially remove the individual from the whitelist) and changes the old one out for the new one. The updated data hash should then match their new KYC info.
+The function will simply check if the passed data hash is not empty (which would essentially remove the individual from the whitelist) and changes the old one out for the new one. The updated data hash should then match their new KYC info. This function is also guarded by an `onlyOwner` modifier.
 
 ### Removing investors
 
@@ -83,9 +145,9 @@ If the need arises to remove an individual from the contract whitelist, `removeV
 function removeVerified(address addr)
     public
     onlyOwner
-    isNotClosed
+    isNotMigrated
 {
-    require(balances[addr] == 0, "Address still holds tokens - Please empty the account before removing it from the list");
+    require(balances[addr] == 0, "Address still holds tokens - please empty the account before removing it from the list");
 
     if (verified[addr] != ZERO_BYTES) {
         verified[addr] = ZERO_BYTES;
@@ -144,7 +206,7 @@ function pruneShareholders(address addr, uint256 value)
 ```
 <sup>• Lines 458-481 in SecurityToken.sol</sup>
 
-This function is used when an address has tokens deducted from it. If the address is not the last in the array, it will be swapped out with the last entry and then dropped off the array.
+This function is used when an address has tokens deducted from it, and will remove an address from the shareholders array by swapping it with the last entry and then cutting the length by one. The index is also swapped, to retain data continuity.
 
 ## Transfers
 
@@ -164,18 +226,18 @@ function transfer(address to, uint256 value)
     return super.transfer(to, value);
 }
 ```
-<sup>• Lines 213-224 in SecurityToken.sol</sup>
+<sup>• Lines 216-227 in SecurityToken.sol</sup>
 
-The `transferFrom` function is identical (found at lines 233-244 in SecurityToken.sol), apart from the function name, the `from` parameter and the call to `super.transferFrom`. These `super` functions call the standard ERC-20 transfer functions. Before running them, the token contract checks if:
+The `transferFrom` function is identical (found at lines 240-251 in SecurityToken.sol), apart from the function name, the addition of a `from` parameter and the call to `super.transferFrom`. These `super` functions call the standard ERC-20 transfer functions. Before running them, the token contract checks if:
 * the contract is not frozen
 * both accounts are unlocked
 * the receiver is whitelisted
 
-If all these conditions are met, then the function executes. Firstly, the transfer is attempted. If the `transfer` call is successful, the shareholders array is updated accordingly through the `updateShareholders` and `pruneShareholders` functions. The function will then return `true` or `false`, depending on if the `transfer` call was successful.
+If all these conditions are met, then the function executes. Firstly, the shareholders array is updated accordingly through the `updateShareholders` and `pruneShareholders` functions. Then, the transfer is attempted. The function should then return `true` if the transfer was successful. If not, the function will throw and state will be reverted.
 
 ## Restrictions
 
-As an extension to the ERC-884 standard, the contract allows an administrator to either lock up individual accounts, or to freeze all accounts simultaneously. This is done by simple toggle functions in the controller, which will call the contract's own functions.
+As an extension to the ERC-884 standard, the contract allows an administrator to either lock up individual accounts, or to freeze all accounts simultaneously. This is done by simple toggle functions in the contract.
 
 ### Freezing
 
@@ -183,13 +245,13 @@ As an extension to the ERC-884 standard, the contract allows an administrator to
 function freeze() 
     public 
     onlyOwner 
-    isNotClosed
+    isNotMigrated
 {
     frozen = !frozen;
     emit Freeze(frozen);
 }
 ```
-<sup>• Lines 266-273 in SecurityToken.sol</sup>
+<sup>• Lines 273-280 in SecurityToken.sol</sup>
 
 The function will simply toggle the `frozen` value in the contract. The `frozen` value is used in the modifier `isNotFrozen`
 
@@ -201,7 +263,7 @@ modifier isNotFrozen() {
 ```
 <sup>• Lines 54-57 in SecurityToken.sol</sup>
 
-and this modifier is placed on the functions `transfer` and `transferFrom`. As such, when `frozen = true`, the contract should not allow any transfers to happen.
+and this modifier is placed on the functions `transfer` and `transferFrom`. As such, when `frozen == true`, the contract should not allow any transfers to happen.
 
 ### Locking
 
@@ -209,13 +271,13 @@ and this modifier is placed on the functions `transfer` and `transferFrom`. As s
 function lock(address addr)
     public
     onlyOwner
-    isNotClosed
+    isNotMigrated
 {
     locked[addr] = !locked[addr];
     emit Lock(addr, locked[addr]);
 }
 ```
-<sup>• Lines 296-303 in SecurityToken.sol</sup>
+<sup>• Lines 303-310 in SecurityToken.sol</sup>
 
 Another simple toggle function, allowing an individual account to be locked and prohibited from sending and receiving tokens. A locked address will produce `true` if passed to the `locked` mapping, which allows us to have the isNotLocked modifier.
 
@@ -238,17 +300,17 @@ function isLocked(address addr)
     return locked[addr];
 }
 ```
-<sup>• Lines 411-417 in SecurityToken.sol</sup>
+<sup>• Lines 419-425 in SecurityToken.sol</sup>
 
 ## Issuance
 
-Issuance is quite straight-forward on the contract side. To issue tokens, use the `issue` function.
+Issuance is quite straight-forward. To issue tokens, use the `issue` function.
 
 ```
 function issue(address to, uint256 amount)
     public
     onlyOwner
-    isNotClosed
+    isNotMigrated
     isVerifiedAddress(to)
     returns (bool)
 {
@@ -258,42 +320,42 @@ function issue(address to, uint256 amount)
 ```
 <sup>• Lines 98-107 in SecurityToken.sol</sup>
 
-The passed address will receive the amount of tokens specified. The address will have to be whitelisted beforehand to receive newly issued tokens.
+The passed address will receive the amount of tokens specified. The address will have to be whitelisted beforehand to receive newly issued tokens. A call to `updateShareholders` is also made, as the address is receiving tokens.
 
 ## Migration
 
 As an extension to the ERC-884 standard, the contract has been fitted with the functionality to migrate it's data to another contract. Most of this happens off-chain, but there are some things that will happen on the contract as well that we will go over.
 
-First off, there is a simple public boolean value which will indicate whether or not the contract is still considered the up-to-date ledger for it's tokens. This is denoted with the `closed` value, and will be `false` until migration has been triggered. Functions which will be restricted after migration will fail the `isNotClosed` check.
+First off, there is a simple public boolean value which will indicate whether or not the contract is still considered the up-to-date ledger for it's tokens. This is denoted with the `migrated` value, and will be `false` until migration has been triggered. Functions which will be restricted after migration will fail the `isNotMigrated` check.
 
 ```
-modifier isNotClosed() {
-    require(!closed, "Token contract has been migrated and is no longer functional.");
+modifier isNotMigrated() {
+    require(!migrated, "Token contract has been migrated and is no longer functional.");
     _;
 }
 ```
 <sup>• Lines 64-67 of SecurityToken.sol</sup>
 
-These functions include `issue`, `addVerified`, `removeVerified`, `updateVerified`, `cancelAndReissue`, `burn`, `freeze`, and `lock`. Additionally, upon migration the contract will be frozen as well, stopping transfers from happening. The contract can be set up for migration with the `migrate` function.
+These functions include `issue`, `addVerified`, `removeVerified`, `updateVerified`, `cancelAndReissue`, `burn`, `freeze`, `migrate` and `lock`. Additionally, upon migration the contract will be frozen as well, stopping transfers from happening. The contract can be set up for migration with the `migrate` function.
 
 ```
 function migrate()
     public
     onlyOwner
-    isNotClosed
+    isNotMigrated
 {
     frozen = true;
-    closed = true;
+    migrated = true;
     emit Migrate();
 }
 ```
-<sup>• Lines 281-289 in SecurityToken.sol</sup>
+<sup>• Lines 288-296 in SecurityToken.sol</sup>
 
 This will freeze and close the contract. Afterwards, the contract is essentially locked down so that nothing about it can be changed. This makes migration a good option in the event a security breach is detected, and will need to be protected from attackers exploiting the contract while a fix is being prepared. As a side effect, the locked contract serves as an immutable snapshot of the contract state at the time of migration, and could aid in transferring data in case of any issues on the off-chain side.
 
 Additionally, the migration function can allow for migrating between blockchains, if so desired by the administrator.
 
-Calling `migrate` will emit a `Migrate` event which will be picked up on by the off-chain applications, which will wrap up their processes, and prepare the databases for migration. This will put the state of the contract at migration into an importable file which can then be used to re-populate an updated contract with. The off-chain application documentation will elaborate on this process, as it is outside of the contract domain.
+Calling `migrate` will emit a `Migrate` event which will be picked up on by the off-chain applications, which will wrap up their processes, and prepare the databases for migration. This will put the state of the contract at migration into an importable file which can then be used to re-populate an updated contract with. The off-chain application documentation will elaborate on this process, as it is outside of the scope of this documentation.
 
 ## Burning
 
@@ -303,25 +365,25 @@ Burning is quite straight-forward, and can only be done by the administrator.
 function burn(address from, uint256 amount) 
     public
     onlyOwner
-    isNotClosed
+    isNotMigrated
 {
     pruneShareholders(from, amount);
     super._burn(from, amount);
 }
 ```
-<sup>• Lines 253-260 in SecurityToken.sol</sup>
+<sup>• Lines 260-267 in SecurityToken.sol</sup>
 
 This will run `pruneShareholders` to keep the shareholders array up to date, and then make a call to `_burn`.
 
 ## Canceling
 
-In case of a holder losing access to their account, or in case of any issue with an individual holding tokens, the contract offers the `cancelAndReissue` function as a solution.
+In case of a holder losing access to their account, or in case of any issue with an individual holding tokens requiring intervention, the contract offers the `cancelAndReissue` function as a solution.
 
 ```
 function cancelAndReissue(address original, address replacement)
     public
     onlyOwner
-    isNotClosed
+    isNotMigrated
     isShareholder(original)
     isNotShareholder(replacement)
     isVerifiedAddress(replacement)
@@ -342,6 +404,54 @@ function cancelAndReissue(address original, address replacement)
 
 As shown above, the contract will essentially replace one address with another, removing the original from the whitelist and moving it's balance to the replacement address. This function gives the administrator full control over any holder's tokens, and should be used with care.
 
+The `isSuperseded` function can be used to directly check if an address has been canceled.
+
+```
+function isSuperseded(address addr)
+    public
+    view
+    onlyOwner
+    returns (bool)
+{
+    return cancellations[addr] != ZERO_ADDRESS;
+}
+```
+<sup>• Lines 389-396 in SecurityToken.sol</sup>
+
+Additionally, the currently used address for a canceled one can also be retrieved from the contract through the `getCurrentFor` function.
+
+```
+function getCurrentFor(address addr)
+    public
+    view
+    onlyOwner
+    returns (address)
+{
+    return findCurrentFor(addr);
+}
+```
+<sup>• Lines 405-412 in SecurityToken.sol</sup>
+
+This will make a call to the internal `findCurrentFor` function.
+
+```
+function findCurrentFor(address addr)
+    internal
+    view
+    returns (address)
+{
+    address candidate = cancellations[addr];
+    if (candidate == ZERO_ADDRESS) {
+        return addr;
+    }
+
+    return findCurrentFor(candidate);
+}
+```
+<sup>• Lines 432-443 in SecurityToken.sol</sup>
+
+This function will recursively dig through cancelled addresses until it has found the most recent one, and returns it.
+
 ## Verifying
 
 The contract has a pair of public functions which can be used to check whether an address is verified and is holding shares, and a function which can be used to cross-check the KYC information hash stored on the contract.
@@ -357,7 +467,7 @@ function isVerified(address addr)
     return verified[addr] != ZERO_BYTES;
 }
 ```
-<sup>• Lines 339-345 in SecurityToken.sol</sup>
+<sup>• Lines 346-352 in SecurityToken.sol</sup>
 
 A simple function to check if an address is known to the contract. It will return either true or false depending on whether the contract has an information hash stored with the address.
 
@@ -370,7 +480,7 @@ function isHolder(address addr)
     return holderIndices[addr] != 0;
 }
 ```
-<sup>• Lines 352-358</sup>
+<sup>• Lines 359-365</sup>
 
 This function will return either true or false depending on if the address is included in the shareholders array.
 
@@ -387,6 +497,6 @@ function hasHash(address addr, bytes32 hash)
     return verified[addr] == hash;
 }
 ```
-<sup>• Lines 366-374 in SecurityToken.sol</sup>
+<sup>• Lines 374-382 in SecurityToken.sol</sup>
 
 The function will return either true or false depending on if the supplied hash matches the one stored in the contract and mapped to `addr`.
